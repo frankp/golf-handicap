@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>golf — CLI documentation</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1c1e21;
+    --muted: #5b6169;
+    --border: #e3e6ea;
+    --code-bg: #f4f5f7;
+    --accent: #1a6b3c;
+    --accent-bg: #eaf6ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --fg: #e6e8eb;
+      --muted: #9aa1a9;
+      --border: #2a2e34;
+      --code-bg: #1d2024;
+      --accent: #5fd694;
+      --accent-bg: #16281e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  h1 {
+    font-size: 1.9rem;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    color: var(--muted);
+    margin: 0 0 40px;
+    font-size: 1.05rem;
+  }
+  h2 {
+    font-size: 1.3rem;
+    margin: 48px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-size: 1.05rem;
+    margin: 28px 0 8px;
+  }
+  p { margin: 0 0 14px; }
+  code {
+    font: 0.88em/1.4 "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    overflow-x: auto;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85rem;
+  }
+  ul, ol { padding-left: 22px; margin: 0 0 14px; }
+  li { margin-bottom: 6px; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0 20px;
+    font-size: 0.92rem;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 7px 12px;
+    text-align: right;
+  }
+  th:first-child, td:first-child { text-align: left; }
+  th {
+    background: var(--code-bg);
+    font-weight: 600;
+  }
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-bg);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 0 0 20px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .term {
+    font-weight: 600;
+  }
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0 0 40px;
+    font-size: 0.9rem;
+  }
+  nav a { color: var(--accent); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  footer {
+    margin-top: 56px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>golf</h1>
+  <p class="subtitle">A command-line tool that tracks golf scores and computes a World Handicap System (WHS) Handicap Index and Course Handicap for one or more players.</p>
+
+  <nav>
+    <a href="#quick-start">Quick start</a>
+    <a href="#concepts">Concepts</a>
+    <a href="#ndb">Net Double Bogey cap</a>
+    <a href="#index-calc">Handicap Index calculation</a>
+    <a href="#caps">Soft/hard cap</a>
+    <a href="#commands">Commands</a>
+    <a href="#limitations">Known simplifications</a>
+  </nav>
+
+  <p>The CLI and web application share one SQLite database (<code>golf.db</code> by default). Legacy JSON data can be loaded with the one-time importer.</p>
+
+  <h2 id="quick-start">Quick start</h2>
+  <pre><code>go build -o golf .
+
+./golf course add                 # define a course/tee once
+./golf round add --player Frank --course "Pine Valley" --tee White --date 2026-07-22
+./golf index --player Frank
+./golf handicap --player Frank "Pine Valley" White</code></pre>
+
+  <h2 id="concepts">Concepts</h2>
+
+  <p><span class="term">Course / Tee</span> — a specific set of tees on a course: its 18-hole Course Rating, Slope Rating, and the par + stroke index of every hole. Defined once with <code>golf course add</code>, then reused by every round played there, by any player.</p>
+
+  <p><span class="term">Round</span> — one 18-hole round played by one player on one course/tee, on a given date. You enter the gross score for each hole.</p>
+
+  <p><span class="term">Player</span> — just a name attached to a round. There's no separate registration step; the first round you add for a name creates that player implicitly.</p>
+
+  <p><span class="term">Adjusted Gross Score</span> — your round score after capping each hole at its Net Double Bogey maximum (see below). This is what actually goes into the handicap calculation, not your raw gross score.</p>
+
+  <p><span class="term">Score Differential</span> — a single round's contribution to your handicap record, adjusted for the difficulty of the course you played:</p>
+  <pre><code>Score Differential = (113 / Slope Rating) × (Adjusted Gross Score − Course Rating)</code></pre>
+
+  <p><span class="term">Handicap Index</span> — your overall number, derived from your best recent Score Differentials (see <a href="#index-calc">below</a>).</p>
+
+  <p><span class="term">Course Handicap</span> — your Handicap Index converted to a whole number of strokes for a specific course/tee:</p>
+  <pre><code>Course Handicap = round(Handicap Index × Slope Rating / 113 + Course Rating − par)</code></pre>
+
+  <h2 id="ndb">How the Net Double Bogey cap works</h2>
+
+  <p>Before a hole score is used for handicap purposes, it's capped at:</p>
+  <pre><code>Par + 2 + handicap strokes received on that hole</code></pre>
+
+  <p>A player receives a stroke on a hole once their Course Handicap reaches that hole's Stroke Index, a second once it reaches Stroke Index + 18, and a third once it reaches Stroke Index + 36. So a 40-handicapper receives two strokes everywhere and a third on the four hardest holes.</p>
+
+  <p>Entering <code>0</code> for a hole (picked up / didn't hole out) is treated as "at least the cap" and scored as the cap.</p>
+
+  <div class="callout">
+    <p><strong>Exception:</strong> a Handicap Index is not established until a player has submitted three 18-hole scores. During those first three rounds, WHS's initial-handicap rule caps every hole at Par + 5. A nominated starting Course Handicap can be used instead.</p>
+  </div>
+
+  <h2 id="index-calc">How the Handicap Index is calculated</h2>
+
+  <p>WHS Rule 5.2a: take your most recent 20 Score Differentials (or fewer, if you don't have 20 rounds yet). Average the lowest few of them, apply a small adjustment if you have a very short scoring history, and round to one decimal place.</p>
+
+  <table>
+    <thead>
+      <tr><th>Rounds on file</th><th>Differentials averaged</th><th>Adjustment</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>3</td><td>lowest 1</td><td>−2.0</td></tr>
+      <tr><td>4</td><td>lowest 1</td><td>−1.0</td></tr>
+      <tr><td>5</td><td>lowest 1</td><td>0</td></tr>
+      <tr><td>6</td><td>lowest 2</td><td>−1.0</td></tr>
+      <tr><td>7–8</td><td>lowest 2</td><td>0</td></tr>
+      <tr><td>9–11</td><td>lowest 3</td><td>0</td></tr>
+      <tr><td>12–14</td><td>lowest 4</td><td>0</td></tr>
+      <tr><td>15–16</td><td>lowest 5</td><td>0</td></tr>
+      <tr><td>17–18</td><td>lowest 6</td><td>0</td></tr>
+      <tr><td>19</td><td>lowest 7</td><td>0</td></tr>
+      <tr><td>20+</td><td>lowest 8 (of the most recent 20)</td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <p>There is <strong>no 0.96 multiplier</strong> in the current version of WHS — that's a detail from an earlier iteration that no longer applies. The table above <em>is</em> the whole calculation of the <strong>raw</strong> index — but see the next section for the cap applied on top of it.</p>
+  </div>
+
+  <h2 id="caps">The soft cap and hard cap (Rule 5.8)</h2>
+
+  <p>WHS limits how fast a Handicap Index is allowed to <em>rise</em>, even if recent scores say it should rise faster. This is measured against the player's <strong>Low Handicap Index</strong>: the lowest Handicap Index they've had in the trailing 365 days. A Low Handicap Index is first established once the player has 20 scores, so the caps do not apply before then.</p>
+
+  <ul>
+    <li>If the newly calculated (raw) index is <strong>more than 3.0</strong> above the Low Handicap Index, only half of the excess above 3.0 counts (the <strong>soft cap</strong>).</li>
+    <li>The total rise is never allowed to exceed <strong>5.0</strong> above the Low Handicap Index, no matter how bad the scores (the <strong>hard cap</strong>).</li>
+  </ul>
+
+  <pre><code>rise = rawIndex − lowIndex
+if rise &lt;= 3.0:  effectiveIndex = rawIndex
+else:            effectiveIndex = min(lowIndex + 3.0 + 0.5×(rise − 3.0), lowIndex + 5.0)</code></pre>
+
+  <p>Decreases are never capped — only rises. This effective (capped) index is what actually determines a player's Course Handicap for their <em>next</em> round, and it's what <code>golf index</code> and <code>golf player list</code> report — not the uncapped Rule 5.2a average.</p>
+
+  <h2 id="commands">Commands</h2>
+  <pre><code>golf course add                     Define a course/tee, prompting for
+                                     rating, slope, and each hole's par + SI
+golf course list                    List defined courses/tees
+
+golf player list                    List players who have recorded rounds
+
+golf round add --player NAME --course COURSE --tee TEE --date YYYY-MM-DD
+                                     Record a round, entering each hole's score
+golf round list [--player NAME]     List recorded rounds (optionally one player's)
+golf round delete ID [--yes]        Delete the round ID shown by 'round list',
+                                     asking for confirmation unless --yes is given
+
+golf index --player NAME            Show a player's current Handicap Index
+golf handicap --player NAME COURSE TEE
+                                     Show a player's Course Handicap for a course/tee
+golf recalculate                    Recompute every round's cached stats in true
+                                     date order, for every player (safe to re-run anytime)</code></pre>
+
+  <p>Data is stored in <code>./golf.db</code>. Override the location with the <code>GOLF_DB</code> environment variable, e.g. <code>GOLF_DB=~/golf.db golf index --player Frank</code>.</p>
+
+  <div class="callout">
+    <p><strong>Rounds can be added in any order.</strong> <code>--date</code> (required) is the real source of truth for chronological order, not the order you happen to run <code>golf round add</code> in. Adding an old round after newer ones are already on file — backfilling — automatically recalculates every later round for that player so their Course Handicap and Score Differential correctly reflect the newly-inserted history. <code>golf round add</code> tells you when this happens (<code>Recalculated &lt;player&gt;'s N later round(s)</code>), and <code>golf round list</code> sorts oldest-first regardless of entry order.</p>
+  </div>
+
+  <div class="callout">
+    <p><strong>Deleting a round</strong> (<code>golf round delete ID</code>) removes that round and then replays the affected players' remaining rounds in date order. A web-entered group round contains multiple players; deleting its ID removes the complete group round.</p>
+  </div>
+
+  <div class="callout">
+    <p><strong><code>golf recalculate</code></strong> does the same replay for every player's rounds in one pass. It is a no-op if nothing is out of sync, so it is always safe to run.</p>
+  </div>
+
+  <h2 id="limitations">Known simplifications</h2>
+
+  <p>This is a personal tool, not an accredited WHS implementation. It intentionally skips some things full handicap software would handle:</p>
+  <ul>
+    <li><span class="term">No Playing Conditions Calculation (PCC).</span> Real WHS software adjusts every score slightly based on how the whole field played that day (unusual weather, etc.). This tool always assumes PCC = 0.</li>
+    <li><span class="term">Plus-handicap players aren't modeled.</span> A negative Handicap Index is computed correctly, but the Net Double Bogey stroke allocation clamps at 0 strokes received rather than modeling strokes <em>given</em>.</li>
+    <li><span class="term">9-hole rounds aren't supported</span> — every round assumes a complete 18 holes.</li>
+    <li><span class="term">No exceptional-score handling, penalty scores, or committee review</span> — features aimed at club administration rather than personal tracking.</li>
+  </ul>
+  <p>None of these affect the core math for a normal 18-hole round from a single-digit-to-30-something handicap golfer, which is the common case this tool is built for.</p>
+
+  <footer>golf · a personal WHS-style handicap tracker</footer>
+</div>
+</body>
+</html>

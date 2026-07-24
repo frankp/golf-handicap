@@ -1,0 +1,5 @@
+golf.db
+golf.db-shm
+golf.db-wal
+web/dist/
+web/node_modules/
