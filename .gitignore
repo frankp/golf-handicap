@@ -1,5 +1,9 @@
 golf.db
 golf.db-shm
 golf.db-wal
+golf-data.json
+/golf
+.env
+/data/
 web/dist/
 web/node_modules/

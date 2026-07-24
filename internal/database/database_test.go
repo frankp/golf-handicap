@@ -19,6 +19,21 @@ func TestCreateRoundInputAcceptsDecimalHandicap(t *testing.T) {
 	}
 }
 
+func TestEmptyPlayerListIsAnEmptyCollection(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	players, err := store.Players(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if players == nil || len(players) != 0 {
+		t.Fatalf("players = %#v, want an empty non-nil slice", players)
+	}
+}
+
 func TestMultiPlayerRoundLoadsEveryScorecardAndEstablishesIndexes(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {

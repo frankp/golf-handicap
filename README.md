@@ -47,6 +47,77 @@ cd web && npm run dev
 
 Then open [http://localhost:5173](http://localhost:5173).
 
+## Production container
+
+The production image builds the Vue frontend and Go server in separate
+stages, then runs as a non-root user with only the compiled application
+and static assets. SQLite data is kept outside the container in a mounted
+directory.
+
+Every push to `master` publishes a multi-platform image to
+`ghcr.io/frankp/golf-handicap`. Version tags such as `v1.2.0` also publish
+`1.2.0` and `1.2` image tags.
+
+After the workflow has completed, open the package on GitHub and make it
+public if the Unraid server should pull it without authentication. For a
+private package, create a classic personal access token with
+`read:packages`, then log in on Unraid:
+
+```sh
+echo "$GHCR_TOKEN" | docker login ghcr.io -u frankp --password-stdin
+```
+
+For an Unraid deployment, copy the example environment file and edit the
+host paths as needed:
+
+```sh
+cp .env.example .env
+mkdir -p /mnt/user/appdata/golf-ledger
+chown -R 99:100 /mnt/user/appdata/golf-ledger
+docker compose -f compose.prod.yaml pull
+docker compose -f compose.prod.yaml up -d --no-build
+```
+
+Open `http://UNRAID-IP:8080`, or change `GOLF_PORT` in `.env`.
+
+To carry the existing database into production, stop the currently
+running application before copying it so SQLite can close cleanly:
+
+```sh
+cp golf.db /mnt/user/appdata/golf-ledger/golf.db
+chown -R 99:100 /mnt/user/appdata/golf-ledger
+```
+
+The container creates a new database automatically when the configured
+file does not exist. The persistent directory must be writable by the
+configured `PUID` and `PGID`.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `GOLF_PORT` | `8080` | Host port published by Compose |
+| `GOLF_DATA_DIR` | `./data` | Host directory mounted at `/data` |
+| `GOLF_DB` | `/data/golf.db` | Database path inside the container |
+| `PUID` / `PGID` | `99` / `100` | Container process identity; matches Unraid `nobody:users` |
+| `TZ` | `Australia/Melbourne` | Container timezone |
+| `GOLF_IMAGE` | `ghcr.io/frankp/golf-handicap:latest` | Published image or version tag |
+| `GOLF_ADDR` | `:8080` | Server listen address when running the image directly |
+| `GOLF_STATIC` | `/app/web/dist` | Built frontend path; normally unchanged |
+
+Useful lifecycle commands:
+
+```sh
+docker compose -f compose.prod.yaml logs -f
+docker compose -f compose.prod.yaml pull
+docker compose -f compose.prod.yaml up -d --no-build
+docker compose -f compose.prod.yaml down
+```
+
+Use `docker compose -f compose.prod.yaml up -d --build` when building
+directly from a local checkout instead of using the published image.
+
+The `/api/health` endpoint and image health check can be used by Unraid
+or a reverse proxy to monitor the container.
+
 ## CLI
 
 ## Quick start

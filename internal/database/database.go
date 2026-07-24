@@ -231,7 +231,7 @@ func (s *Store) Players(ctx context.Context) ([]Player, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var players []Player
+	players := []Player{}
 	for rows.Next() {
 		var p Player
 		var starting sql.NullInt64
