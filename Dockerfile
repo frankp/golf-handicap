@@ -19,21 +19,24 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
     go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/golf-server ./cmd/server
 
 FROM alpine:3.24.1
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates su-exec tzdata \
     && mkdir -p /app/web /data \
     && chown -R 99:100 /data
 WORKDIR /app
 COPY --from=go-builder /out/golf-server /app/golf-server
 COPY --from=web-builder /src/web/dist /app/web/dist
+COPY --chmod=755 docker-entrypoint.sh /app/docker-entrypoint.sh
 
 ENV GOLF_ADDR=:8080 \
     GOLF_DB=/data/golf.db \
     GOLF_STATIC=/app/web/dist \
+    PUID=99 \
+    PGID=100 \
     TZ=Australia/Melbourne
 
-USER 99:100
 EXPOSE 8080
 VOLUME ["/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1:8080/api/health || exit 1
-ENTRYPOINT ["/app/golf-server"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["/app/golf-server"]
