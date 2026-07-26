@@ -92,11 +92,37 @@ The container creates a new database automatically when the configured
 file does not exist. The persistent directory must be writable by the
 configured `PUID` and `PGID`.
 
+### Admin access
+
+Scores and handicaps remain publicly readable. Creating, changing, or
+deleting data requires the single administrator password.
+
+For Unraid, add this container variable before updating the image:
+
+```text
+GOLF_ADMIN_PASSWORD=use-a-long-unique-password
+```
+
+The password is hashed in memory when the server starts and is never
+stored in SQLite. `GOLF_ADMIN_PASSWORD_HASH` can be used instead when a
+bcrypt hash is available. If neither variable is set, the site starts in
+read-only mode and all API writes are rejected.
+
+The login cookie is secure by default, so the public site must use HTTPS.
+For local HTTP development only, set:
+
+```sh
+GOLF_COOKIE_SECURE=false GOLF_ADMIN_PASSWORD=development-only go run ./cmd/server
+```
+
 | Variable | Default | Purpose |
 |---|---|---|
 | `GOLF_PORT` | `8080` | Host port published by Compose |
 | `GOLF_DATA_DIR` | `./data` | Host directory mounted at `/data` |
 | `GOLF_DB` | `/data/golf.db` | Database path inside the container |
+| `GOLF_ADMIN_PASSWORD` | unset | Single administrator password |
+| `GOLF_ADMIN_PASSWORD_HASH` | unset | Bcrypt hash used instead of the plain environment value |
+| `GOLF_COOKIE_SECURE` | `true` | Restrict the login cookie to HTTPS |
 | `PUID` / `PGID` | `99` / `100` | Container process identity; matches Unraid `nobody:users` |
 | `TZ` | `Australia/Melbourne` | Container timezone |
 | `GOLF_IMAGE` | `ghcr.io/frankp/golf-handicap:latest` | Published image or version tag |

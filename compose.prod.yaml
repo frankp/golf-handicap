@@ -11,6 +11,9 @@ services:
       GOLF_ADDR: ":8080"
       GOLF_DB: "${GOLF_DB:-/data/golf.db}"
       GOLF_STATIC: "/app/web/dist"
+      GOLF_ADMIN_PASSWORD: "${GOLF_ADMIN_PASSWORD:-}"
+      GOLF_ADMIN_PASSWORD_HASH: "${GOLF_ADMIN_PASSWORD_HASH:-}"
+      GOLF_COOKIE_SECURE: "${GOLF_COOKIE_SECURE:-true}"
       TZ: "${TZ:-Australia/Melbourne}"
     ports:
       - "${GOLF_PORT:-8080}:8080"

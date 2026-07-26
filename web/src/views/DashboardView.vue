@@ -4,6 +4,7 @@ import { ArrowRight, Plus, Users, ListChecks } from '@lucide/vue'
 import { api } from '@/api'
 import type { Player, Round } from '@/types'
 import EmptyState from '@/components/EmptyState.vue'
+import { authState } from '@/auth'
 
 const players = ref<Player[]>([])
 const rounds = ref<Round[]>([])
@@ -35,7 +36,7 @@ function formatIndex(value: number | null) {
         <p class="eyebrow">Current record</p>
         <h1>Overview</h1>
       </div>
-      <RouterLink class="button desktop-only-flex" to="/rounds/new"><Plus :size="18" /> Record round</RouterLink>
+      <RouterLink v-if="authState.authenticated" class="button desktop-only-flex" to="/rounds/new"><Plus :size="18" /> Record round</RouterLink>
     </header>
 
     <p v-if="error" class="alert error">{{ error }}</p>
@@ -53,7 +54,7 @@ function formatIndex(value: number | null) {
           <RouterLink to="/players">All players <ArrowRight :size="16" /></RouterLink>
         </div>
         <EmptyState v-if="players.length === 0" title="No players yet" detail="Add the people whose rounds you track.">
-          <RouterLink class="button secondary" to="/players">Add player</RouterLink>
+          <RouterLink v-if="authState.authenticated" class="button secondary" to="/players">Add player</RouterLink>
         </EmptyState>
         <div v-else class="table-wrap">
           <table>
@@ -77,7 +78,7 @@ function formatIndex(value: number | null) {
           <RouterLink to="/rounds">Round history <ArrowRight :size="16" /></RouterLink>
         </div>
         <EmptyState v-if="rounds.length === 0" title="No rounds recorded" detail="Your group rounds will appear here.">
-          <RouterLink class="button" to="/rounds/new">Record round</RouterLink>
+          <RouterLink v-if="authState.authenticated" class="button" to="/rounds/new">Record round</RouterLink>
         </EmptyState>
         <div v-else class="round-list">
           <RouterLink v-for="round in recentRounds" :key="round.id" class="round-row" :to="`/rounds/${round.id}`">

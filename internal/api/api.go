@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"golf/internal/auth"
 	"golf/internal/database"
 	"golf/internal/handicap"
 )
@@ -18,9 +19,10 @@ type API struct {
 	store *database.Store
 }
 
-func New(store *database.Store) http.Handler {
+func New(store *database.Store, authentication *auth.Manager) http.Handler {
 	api := &API{store: store}
 	mux := http.NewServeMux()
+	authentication.Register(mux)
 	mux.HandleFunc("GET /api/health", api.health)
 	mux.HandleFunc("GET /api/players", api.players)
 	mux.HandleFunc("POST /api/players", api.createPlayer)
@@ -37,7 +39,7 @@ func New(store *database.Store) http.Handler {
 	mux.HandleFunc("GET /api/rounds/{id}", api.round)
 	mux.HandleFunc("PUT /api/rounds/{id}", api.updateRound)
 	mux.HandleFunc("DELETE /api/rounds/{id}", api.deleteRound)
-	return recoverMiddleware(mux)
+	return recoverMiddleware(authentication.ProtectWrites(mux))
 }
 
 func (a *API) health(w http.ResponseWriter, _ *http.Request) {

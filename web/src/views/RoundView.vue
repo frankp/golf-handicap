@@ -4,6 +4,7 @@ import { ArrowLeft, Flag, Pencil } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 import { api } from '@/api'
 import type { Course, Round } from '@/types'
+import { authState } from '@/auth'
 
 const route = useRoute()
 const round = ref<Round | null>(null)
@@ -79,7 +80,7 @@ function scoreLabel(score: number, par: number) {
     <template v-else>
       <header class="page-header">
         <div><p class="eyebrow">{{ round.playedOn }}</p><h1>{{ round.courseName }}</h1><p v-if="round.notes" class="subtle">{{ round.notes }}</p></div>
-        <RouterLink class="button secondary" :to="`/rounds/${round.id}/edit`"><Pencil :size="17" /> Edit round</RouterLink>
+        <RouterLink v-if="authState.authenticated" class="button secondary" :to="`/rounds/${round.id}/edit`"><Pencil :size="17" /> Edit round</RouterLink>
       </header>
       <div class="score-legend" aria-label="Score legend">
         <span><i class="score-mark score-eagle">−2</i>Eagle+</span>

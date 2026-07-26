@@ -5,6 +5,7 @@ import { api } from '@/api'
 import type { Player } from '@/types'
 import AppModal from '@/components/AppModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { authState } from '@/auth'
 
 const players = ref<Player[]>([])
 const loading = ref(true)
@@ -93,12 +94,12 @@ async function remove(player: Player) {
   <div class="page">
     <header class="page-header">
       <div><p class="eyebrow">Group record</p><h1>Players</h1></div>
-      <button class="button" @click="openAdd"><Plus :size="18" /> Add player</button>
+      <button v-if="authState.authenticated" class="button" @click="openAdd"><Plus :size="18" /> Add player</button>
     </header>
     <p v-if="error" class="alert error">{{ error }}</p>
     <div v-if="loading" class="loading">Loading players...</div>
     <EmptyState v-else-if="players.length === 0" title="No players yet" detail="Add your regular playing group.">
-      <button class="button" @click="openAdd">Add player</button>
+      <button v-if="authState.authenticated" class="button" @click="openAdd">Add player</button>
     </EmptyState>
     <div v-else class="table-wrap">
       <table>
@@ -111,8 +112,8 @@ async function remove(player: Player) {
             <td>{{ player.startingCourseHandicap ?? '—' }}</td>
             <td>{{ player.roundCount }}</td>
             <td class="button-cluster">
-              <button class="icon-button" title="Edit player" @click="openEdit(player)"><Pencil :size="17" /></button>
-              <button class="icon-button danger" title="Delete player" :disabled="player.roundCount > 0" @click="remove(player)"><Trash2 :size="17" /></button>
+              <button v-if="authState.authenticated" class="icon-button" title="Edit player" @click="openEdit(player)"><Pencil :size="17" /></button>
+              <button v-if="authState.authenticated" class="icon-button danger" title="Delete player" :disabled="player.roundCount > 0" @click="remove(player)"><Trash2 :size="17" /></button>
               <RouterLink class="icon-button" :to="`/players/${player.id}`" title="View player"><ArrowRight :size="17" /></RouterLink>
             </td>
           </tr>

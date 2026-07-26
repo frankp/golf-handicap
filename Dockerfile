@@ -29,6 +29,7 @@ COPY --from=web-builder /src/web/dist /app/web/dist
 ENV GOLF_ADDR=:8080 \
     GOLF_DB=/data/golf.db \
     GOLF_STATIC=/app/web/dist \
+    GOLF_COOKIE_SECURE=true \
     TZ=Australia/Melbourne
 
 USER 99:100

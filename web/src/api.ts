@@ -8,6 +8,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   })
+  if (response.status === 401) {
+    window.dispatchEvent(new Event('golf:unauthorized'))
+  }
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
     throw new Error(body.error || 'Request failed')
@@ -17,6 +20,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  authSession: () => request<{ authenticated: boolean; enabled: boolean }>('/api/auth/session'),
+  login: (password: string) =>
+    request<{ authenticated: boolean }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ password }) }),
+  logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   players: () => request<Player[]>('/api/players'),
   player: (id: number) => request<PlayerDetail>(`/api/players/${id}`),
   createPlayer: (body: { name: string; startingCourseHandicap: number | null }) =>

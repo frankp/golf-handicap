@@ -5,6 +5,7 @@ import { api } from '@/api'
 import type { Course, Tee } from '@/types'
 import AppModal from '@/components/AppModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { authState } from '@/auth'
 
 interface TeeForm {
   name: string
@@ -126,18 +127,18 @@ async function removeTee(id: number, label: string) {
   <div class="page">
     <header class="page-header">
       <div><p class="eyebrow">Course register</p><h1>Courses & tees</h1></div>
-      <button class="button" @click="openAdd()"><Plus :size="18" /> Add tee</button>
+      <button v-if="authState.authenticated" class="button" @click="openAdd()"><Plus :size="18" /> Add tee</button>
     </header>
     <p v-if="error" class="alert error">{{ error }}</p>
     <div v-if="loading" class="loading">Loading courses...</div>
     <EmptyState v-else-if="courses.length === 0" title="No courses configured" detail="Add the first course and tee before recording a round.">
-      <button class="button" @click="openAdd()">Add course</button>
+      <button v-if="authState.authenticated" class="button" @click="openAdd()">Add course</button>
     </EmptyState>
     <div v-else class="course-list">
       <section v-for="course in courses" :key="course.id" class="course-band">
         <header>
           <div><h2>{{ course.name }}</h2><span>{{ course.tees.length }} tee{{ course.tees.length === 1 ? '' : 's' }}</span></div>
-          <div class="button-cluster">
+          <div v-if="authState.authenticated" class="button-cluster">
             <button class="icon-button" title="Rename course" @click="openEditCourse(course)"><Pencil :size="17" /></button>
             <button class="button secondary compact" @click="openAdd(course.name)"><Plus :size="16" /> Tee</button>
           </div>
@@ -155,7 +156,7 @@ async function removeTee(id: number, label: string) {
                 <div><span>Par</span><b v-for="(par, i) in tee.par" :key="i">{{ par }}</b></div>
                 <div><span>SI</span><b v-for="(si, i) in tee.strokeIndex" :key="i">{{ si }}</b></div>
               </div>
-              <div class="button-cluster tee-actions">
+              <div v-if="authState.authenticated" class="button-cluster tee-actions">
                 <button class="button secondary compact" @click="openEditTee(course, tee)"><Pencil :size="16" /> Edit tee</button>
                 <button class="button danger-text compact" @click="removeTee(tee.id, `${course.name} ${tee.name}`)"><Trash2 :size="16" /> Delete tee</button>
               </div>

@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"golf/internal/api"
+	"golf/internal/auth"
 	"golf/internal/database"
 )
 
@@ -23,13 +25,22 @@ func main() {
 	staticDir := flag.String("static", envOr("GOLF_STATIC", "web/dist"), "built frontend directory")
 	flag.Parse()
 
+	authentication, err := auth.New(auth.Config{
+		Password:     os.Getenv("GOLF_ADMIN_PASSWORD"),
+		PasswordHash: os.Getenv("GOLF_ADMIN_PASSWORD_HASH"),
+		SecureCookie: envBool("GOLF_COOKIE_SECURE", true),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	store, err := database.Open(*databasePath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer store.Close()
 
-	apiHandler := api.New(store)
+	apiHandler := api.New(store, authentication)
 	handler := spaHandler(apiHandler, *staticDir)
 	server := &http.Server{
 		Addr:              *address,
@@ -84,4 +95,16 @@ func envOr(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func envBool(name string, fallback bool) bool {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Fatalf("%s must be true or false", name)
+	}
+	return parsed
 }
