@@ -54,11 +54,6 @@ stages, then runs as a non-root user with only the compiled application
 and static assets. SQLite data is kept outside the container in a mounted
 directory.
 
-The container starts its entrypoint as root so Unraid can inject its
-Tailscale hook, then drops to the configured `PUID` and `PGID` before
-starting the golf server. Privileged mode and a `--user 0:0` override are
-not required.
-
 Every push to `master` publishes a multi-platform image to
 `ghcr.io/frankp/golf-handicap`. Version tags such as `v1.2.0` also publish
 `1.2.0` and `1.2` image tags.
