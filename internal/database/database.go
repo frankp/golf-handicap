@@ -58,8 +58,8 @@ type RoundPlayer struct {
 	Scores                [18]int  `json:"scores"`
 	Gross                 int      `json:"gross"`
 	HandicapUsed          *float64 `json:"handicapUsed"`
-	NetScore              *float64 `json:"netScore"`
-	NetScores             *[18]int `json:"netScores"`
+	NetScore              float64  `json:"netScore"`
+	NetScores             [18]int  `json:"netScores"`
 	CourseHandicap        int      `json:"courseHandicap"`
 	AdjustedGross         int      `json:"adjustedGross"`
 	ScoreDifferential     float64  `json:"scoreDifferential"`
@@ -643,12 +643,12 @@ func (s *Store) loadRounds(ctx context.Context, clause string, args ...any) ([]R
 			rp.Gross += strokes
 		}
 		scoreRows.Close()
+		netHandicap := float64(rp.CourseHandicap)
 		if rp.HandicapUsed != nil {
-			net := float64(rp.Gross) - *rp.HandicapUsed
-			rp.NetScore = &net
-			netScores := handicap.NetScores(rp.Scores, participantStrokeIndexes[id], *rp.HandicapUsed)
-			rp.NetScores = &netScores
+			netHandicap = *rp.HandicapUsed
 		}
+		rp.NetScore = float64(rp.Gross) - netHandicap
+		rp.NetScores = handicap.NetScores(rp.Scores, participantStrokeIndexes[id], netHandicap)
 	}
 	rounds := make([]Round, 0, len(order))
 	for _, id := range order {

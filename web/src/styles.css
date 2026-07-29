@@ -179,7 +179,11 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 2px 
 .net-score-mark.score-bogey { border-color: #c6a36e; background: #fbf6ed; color: #8b6d3f; }
 .net-score-mark.score-double-bogey { border-color: #c08c89; background: #faf0ef; color: #8f5d59; }
 .net-score-mark.score-double-bogey::after { border-color: #c08c89; }
-.score-legend { min-height: 34px; display: flex; justify-content: flex-end; align-items: center; gap: 14px; color: var(--muted); font-size: 11px; }
+.score-toolbar { min-height: 34px; display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
+.net-toggle { min-height: 28px; padding: 4px 10px; border: 1px solid #aebdb6; border-radius: 4px; background: white; color: var(--green-2); font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.net-toggle:hover, .net-toggle[aria-pressed="true"] { border-color: var(--green-2); background: #e8f1ed; }
+.net-toggle:focus-visible { outline: 2px solid var(--green-2); outline-offset: 2px; }
+.score-legend { display: flex; justify-content: flex-end; align-items: center; gap: 14px; color: var(--muted); font-size: 11px; }
 .score-legend > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .score-legend .score-mark { width: 23px; height: 23px; font-size: 9px; }
 .calculation-note { margin: 0; padding: 0 16px 14px; color: var(--muted); font-size: 11px; }

@@ -32,6 +32,23 @@ for (const viewport of [
   await page.goto(`${baseURL}/`, { waitUntil: 'networkidle' })
   await page.screenshot({ path: `/tmp/golf-overview-${viewport.name}.png`, fullPage: true })
 
+  await page.goto(`${baseURL}/rounds`, { waitUntil: 'networkidle' })
+  const firstRound = await page.evaluate(async () => {
+    const rounds = await fetch('/api/rounds?limit=200').then((response) => response.json())
+    return rounds[0]
+  })
+  const historySummaries = page.locator('.history-main span')
+  if (firstRound && await historySummaries.count() > 0) {
+    const expectedSummary = firstRound.participants
+      .map((participant) => `${participant.playerName}: ${participant.gross}(${Math.round(participant.netScore)})`)
+      .join(' · ')
+    const displayedSummary = await historySummaries.first().innerText()
+    if (displayedSummary !== expectedSummary) {
+      failures.push(`${viewport.name}: round summary "${displayedSummary}", expected "${expectedSummary}"`)
+    }
+  }
+  await page.screenshot({ path: `/tmp/golf-round-history-${viewport.name}.png`, fullPage: true })
+
   await page.goto(`${baseURL}/courses`, { waitUntil: 'networkidle' })
   const renameButtons = await page.getByTitle('Rename course').count()
   if (renameButtons > 0) {
@@ -70,16 +87,21 @@ for (const viewport of [
 
   const netRound = await page.evaluate(async () => {
     const rounds = await fetch('/api/rounds?limit=200').then((response) => response.json())
-    return rounds.find((round) => round.participants.some((participant) => participant.netScores !== null))
+    return rounds.find((round) => round.participants.some((participant) => participant.handicapUsed === null))
   })
   if (netRound) {
     await page.goto(`${baseURL}/rounds/${netRound.id}`, { waitUntil: 'networkidle' })
-    const expectedNetRows = netRound.participants.filter((participant) => participant.netScores !== null).length
+    const expectedNetRows = netRound.participants.length
     const displayedNetRows = await page.locator('.scorecard-row.net-scores').count()
     if (displayedNetRows !== expectedNetRows) {
-      failures.push(`${viewport.name}: displayed ${displayedNetRows} net rows, expected ${expectedNetRows}`)
+      failures.push(`${viewport.name}: displayed ${displayedNetRows} default net rows, expected ${expectedNetRows}`)
     }
     await page.screenshot({ path: `/tmp/golf-round-net-scores-${viewport.name}.png`, fullPage: true })
+    await page.getByRole('button', { name: 'Hide net' }).click()
+    const hiddenNetRows = await page.locator('.scorecard-row.net-scores').count()
+    if (hiddenNetRows !== 0) {
+      failures.push(`${viewport.name}: displayed net rows after the toggle was disabled`)
+    }
   }
 
   await page.goto(`${baseURL}/rounds/new`, { waitUntil: 'networkidle' })

@@ -53,8 +53,13 @@ func TestMultiPlayerRoundLoadsEveryScorecardAndEstablishesIndexes(t *testing.T) 
 	}
 
 	var players []Player
-	for _, name := range []string{"Frank", "Grahame", "Shane"} {
-		player, err := store.CreatePlayer(ctx, name, nil)
+	for i, name := range []string{"Frank", "Grahame", "Shane"} {
+		var startingHandicap *int
+		if i == 1 {
+			starting := 10
+			startingHandicap = &starting
+		}
+		player, err := store.CreatePlayer(ctx, name, startingHandicap)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -99,26 +104,22 @@ func TestMultiPlayerRoundLoadsEveryScorecardAndEstablishesIndexes(t *testing.T) 
 		if participant.HandicapIndexAfter == nil {
 			t.Errorf("%s should have an established index after three rounds", participant.PlayerName)
 		}
-		if i == 0 && (participant.HandicapUsed == nil || participant.NetScore == nil || *participant.NetScore != float64(participant.Gross)-12.5) {
+		if i == 0 && (participant.HandicapUsed == nil || participant.NetScore != float64(participant.Gross)-12.5) {
 			t.Errorf("%s handicap/net score not loaded: %+v", participant.PlayerName, participant)
 		}
-		if i == 0 {
-			if participant.NetScores == nil {
-				t.Errorf("%s per-hole net scores not loaded", participant.PlayerName)
-			} else {
-				for hole, net := range participant.NetScores {
-					want := wantScore
-					if hole < 13 {
-						want--
-					}
-					if net != want {
-						t.Errorf("%s hole %d net = %d, want %d", participant.PlayerName, hole+1, net, want)
-					}
-				}
-			}
+		netHandicap := float64(participant.CourseHandicap)
+		if participant.HandicapUsed != nil {
+			netHandicap = *participant.HandicapUsed
 		}
-		if i != 0 && participant.NetScores != nil {
-			t.Errorf("%s net scores = %v, want nil without a supplied handicap", participant.PlayerName, participant.NetScores)
+		if participant.NetScore != float64(participant.Gross)-netHandicap {
+			t.Errorf("%s net score = %v, want %v", participant.PlayerName, participant.NetScore, float64(participant.Gross)-netHandicap)
+		}
+		if i == 1 && (participant.HandicapUsed != nil || participant.CourseHandicap != 10 || participant.NetScore != float64(participant.Gross)-10) {
+			t.Errorf("%s did not use historical Course Handicap fallback: %+v", participant.PlayerName, participant)
+		}
+		wantNetScores := handicap.NetScores(participant.Scores, course.StrokeIndex, netHandicap)
+		if participant.NetScores != wantNetScores {
+			t.Errorf("%s net scores = %v, want %v", participant.PlayerName, participant.NetScores, wantNetScores)
 		}
 	}
 

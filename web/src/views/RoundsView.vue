@@ -49,7 +49,7 @@ async function remove(round: Round) {
         <time :datetime="round.playedOn"><span>{{ new Date(`${round.playedOn}T00:00:00`).toLocaleDateString('en-AU', { day: '2-digit' }) }}</span>{{ new Date(`${round.playedOn}T00:00:00`).toLocaleDateString('en-AU', { month: 'short', year: 'numeric' }) }}</time>
         <div class="history-main">
           <RouterLink :to="`/rounds/${round.id}`">{{ round.courseName }}</RouterLink>
-          <span>{{ round.participants.map((p) => `${p.playerName} ${p.netScore !== null ? `net ${Math.round(p.netScore)}` : `gross ${p.gross}`}`).join(' · ') }}</span>
+          <span>{{ round.participants.map((p) => `${p.playerName}: ${p.gross}(${Math.round(p.netScore)})`).join(' · ') }}</span>
         </div>
         <div class="button-cluster">
           <button v-if="authState.authenticated" class="icon-button danger" title="Delete round" @click="remove(round)"><Trash2 :size="17" /></button>

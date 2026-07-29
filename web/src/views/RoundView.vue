@@ -10,6 +10,7 @@ const route = useRoute()
 const round = ref<Round | null>(null)
 const courses = ref<Course[]>([])
 const error = ref('')
+const showNet = ref(true)
 
 onMounted(async () => {
   try {
@@ -81,19 +82,24 @@ function scoreLabel(score: number, par: number) {
         <div><p class="eyebrow">{{ round.playedOn }}</p><h1>{{ round.courseName }}</h1><p v-if="round.notes" class="subtle">{{ round.notes }}</p></div>
         <RouterLink v-if="authState.authenticated" class="button secondary" :to="`/rounds/${round.id}/edit`"><Pencil :size="17" /> Edit round</RouterLink>
       </header>
-      <div class="score-legend" aria-label="Score legend">
-        <span><i class="score-mark score-eagle">−2</i>Eagle+</span>
-        <span><i class="score-mark score-birdie">−1</i>Birdie</span>
-        <span><i class="score-mark score-par">E</i>Par</span>
-        <span><i class="score-mark score-bogey">+1</i>Bogey</span>
-        <span><i class="score-mark score-double-bogey">+2</i>Double+</span>
+      <div class="score-toolbar">
+        <button class="net-toggle" type="button" :aria-pressed="showNet" @click="showNet = !showNet">
+          {{ showNet ? 'Hide net' : 'Show net' }}
+        </button>
+        <div class="score-legend" aria-label="Score legend">
+          <span><i class="score-mark score-eagle">−2</i>Eagle+</span>
+          <span><i class="score-mark score-birdie">−1</i>Birdie</span>
+          <span><i class="score-mark score-par">E</i>Par</span>
+          <span><i class="score-mark score-bogey">+1</i>Bogey</span>
+          <span><i class="score-mark score-double-bogey">+2</i>Double+</span>
+        </div>
       </div>
       <section v-for="participant in round.participants" :key="participant.id" class="score-section">
         <header>
           <div><RouterLink :to="`/players/${participant.playerId}`">{{ participant.playerName }}</RouterLink><span>{{ participant.teeName }} tee</span></div>
           <div class="score-summary">
             <span>Gross <b>{{ participant.gross }}</b></span>
-            <span v-if="participant.netScore !== null">Net <b>{{ Math.round(participant.netScore) }}</b></span>
+            <span>Net <b>{{ Math.round(participant.netScore) }}</b></span>
             <span>Adjusted <b>{{ participant.adjustedGross }}</b></span>
             <span>Diff <b class="differential-value">{{ participant.scoreDifferential.toFixed(1) }} <span v-if="participant.counting" class="counting-flag" title="Counts toward current group index" aria-label="Counts toward current group index"><Flag :size="14" /></span></b></span>
             <span>HI <b>{{ participant.handicapIndexAfter?.toFixed(1) ?? '—' }}</b></span>
@@ -129,7 +135,7 @@ function scoreLabel(score: number, par: number) {
             </b>
             <b>{{ nineScore(participant.scores, 9) }}</b><b>{{ participant.gross }}</b>
           </div>
-          <div v-if="participant.netScores !== null" class="scorecard-row net-scores">
+          <div v-if="showNet" class="scorecard-row net-scores">
             <span>Net</span>
             <b v-for="(score, i) in participant.netScores.slice(0, 9)" :key="i">
               <i
@@ -153,7 +159,11 @@ function scoreLabel(score: number, par: number) {
         <p v-if="participant.initialParFiveCapUsed || participant.startingHandicapUsed" class="calculation-note">
           {{ participant.startingHandicapUsed ? `Starting Course Handicap ${participant.courseHandicap} applied.` : 'Initial Par + 5 limits applied.' }}
         </p>
-        <p v-if="participant.handicapUsed !== null" class="calculation-note">Net score uses the supplied handicap of {{ participant.handicapUsed.toFixed(1) }}.</p>
+        <p v-if="showNet" class="calculation-note">
+          {{ participant.handicapUsed !== null
+            ? `Net score uses the supplied handicap of ${participant.handicapUsed.toFixed(1)}.`
+            : `Net score uses the Course Handicap of ${participant.courseHandicap}.` }}
+        </p>
       </section>
     </template>
   </div>
