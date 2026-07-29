@@ -162,6 +162,8 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 2px 
 .scorecard-row { width: 890px; grid-template-columns: 62px repeat(9, 38px) 46px repeat(9, 38px) 46px 52px; }
 .scorecard-row.pars { color: var(--muted); background: #f8faf8; }
 .scorecard-row.scores b { font-size: 13px; }
+.scorecard-row.net-scores { background: #f3f8f5; color: var(--green-2); }
+.scorecard-row.net-scores b { font-size: 12px; }
 .score-mark { position: relative; width: 25px; height: 25px; display: inline-grid; place-items: center; border: 0; color: var(--ink); font-style: normal; font-weight: 800; line-height: 1; }
 .score-birdie { border: 2px solid #16866b; border-radius: 50%; background: #e7f6f0; color: #075d4b; }
 .score-eagle { border: 2px solid #08745e; border-radius: 50%; background: #cceee1; color: #064f41; }
@@ -170,6 +172,13 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 2px 
 .score-bogey { border: 2px solid #bf7b16; background: #fff5df; color: #80500c; }
 .score-double-bogey { border: 2px solid #b84b46; background: #fff0ef; color: #842d29; }
 .score-double-bogey::after { content: ""; position: absolute; inset: 2px; border: 1px solid #b84b46; }
+.net-score-mark.score-eagle { border-color: #67988b; background: #e2eeea; color: #47766a; }
+.net-score-mark.score-eagle::after { border-color: #67988b; }
+.net-score-mark.score-birdie { border-color: #7aa99c; background: #eef5f2; color: #527b70; }
+.net-score-mark.score-par { color: #718079; }
+.net-score-mark.score-bogey { border-color: #c6a36e; background: #fbf6ed; color: #8b6d3f; }
+.net-score-mark.score-double-bogey { border-color: #c08c89; background: #faf0ef; color: #8f5d59; }
+.net-score-mark.score-double-bogey::after { border-color: #c08c89; }
 .score-legend { min-height: 34px; display: flex; justify-content: flex-end; align-items: center; gap: 14px; color: var(--muted); font-size: 11px; }
 .score-legend > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .score-legend .score-mark { width: 23px; height: 23px; font-size: 9px; }

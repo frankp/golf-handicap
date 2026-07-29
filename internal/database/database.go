@@ -59,6 +59,7 @@ type RoundPlayer struct {
 	Gross                 int      `json:"gross"`
 	HandicapUsed          *float64 `json:"handicapUsed"`
 	NetScore              *float64 `json:"netScore"`
+	NetScores             *[18]int `json:"netScores"`
 	CourseHandicap        int      `json:"courseHandicap"`
 	AdjustedGross         int      `json:"adjustedGross"`
 	ScoreDifferential     float64  `json:"scoreDifferential"`
@@ -565,7 +566,7 @@ func (s *Store) loadRounds(ctx context.Context, clause string, args ...any) ([]R
 	query := `SELECT r.id, r.played_on, r.course_id, c.name, r.notes,
 		rp.id, p.id, p.name, t.id, t.name, rp.handicap_used, rp.course_handicap, rp.adjusted_gross,
 		rp.score_differential, rp.handicap_index_after, rp.starting_handicap_used,
-		rp.initial_par_five_cap_used
+		rp.initial_par_five_cap_used, t.stroke_index_json
 		FROM rounds r
 		JOIN courses c ON c.id = r.course_id
 		LEFT JOIN round_players rp ON rp.round_id = r.id
@@ -584,17 +585,18 @@ func (s *Store) loadRounds(ctx context.Context, clause string, args ...any) ([]R
 		index   int
 	}
 	participantPositions := map[int64]participantPosition{}
+	participantStrokeIndexes := map[int64][18]int{}
 	for rows.Next() {
 		var r Round
 		var rpID, playerID, teeID sql.NullInt64
-		var playerName, teeName sql.NullString
+		var playerName, teeName, strokeIndexJSON sql.NullString
 		var ch, adjusted sql.NullInt64
 		var handicapUsed, differential sql.NullFloat64
 		var index sql.NullFloat64
 		var startingUsed, initialUsed sql.NullBool
 		if err := rows.Scan(&r.ID, &r.PlayedOn, &r.CourseID, &r.CourseName, &r.Notes,
 			&rpID, &playerID, &playerName, &teeID, &teeName, &handicapUsed, &ch, &adjusted,
-			&differential, &index, &startingUsed, &initialUsed); err != nil {
+			&differential, &index, &startingUsed, &initialUsed, &strokeIndexJSON); err != nil {
 			return nil, err
 		}
 		current := roundMap[r.ID]
@@ -614,6 +616,11 @@ func (s *Store) loadRounds(ctx context.Context, clause string, args ...any) ([]R
 			current.Participants = append(current.Participants, rp)
 			participantPositions[rp.ID] = participantPosition{roundID: r.ID, index: len(current.Participants) - 1}
 			participantIDs = append(participantIDs, rp.ID)
+			var strokeIndexes [18]int
+			if err := json.Unmarshal([]byte(strokeIndexJSON.String), &strokeIndexes); err != nil {
+				return nil, err
+			}
+			participantStrokeIndexes[rp.ID] = strokeIndexes
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -639,6 +646,8 @@ func (s *Store) loadRounds(ctx context.Context, clause string, args ...any) ([]R
 		if rp.HandicapUsed != nil {
 			net := float64(rp.Gross) - *rp.HandicapUsed
 			rp.NetScore = &net
+			netScores := handicap.NetScores(rp.Scores, participantStrokeIndexes[id], *rp.HandicapUsed)
+			rp.NetScores = &netScores
 		}
 	}
 	rounds := make([]Round, 0, len(order))

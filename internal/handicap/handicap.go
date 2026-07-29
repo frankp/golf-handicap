@@ -107,6 +107,36 @@ func NetDoubleBogeyCap(par, courseHandicap, strokeIndex int) int {
 	return par + 2 + strokes
 }
 
+// NetScores allocates the rounded playing handicap across the scorecard using
+// each hole's stroke index. A negative handicap adds strokes on the easiest
+// holes. Unplayed holes remain zero.
+func NetScores(scores, strokeIndex [18]int, handicapUsed float64) [18]int {
+	playingHandicap := int(math.Round(handicapUsed))
+	direction := 1
+	if playingHandicap < 0 {
+		direction = -1
+		playingHandicap = -playingHandicap
+	}
+	fullRounds := playingHandicap / 18
+	remaining := playingHandicap % 18
+
+	var net [18]int
+	for i, score := range scores {
+		if score <= 0 {
+			continue
+		}
+		extra := 0
+		if direction > 0 && strokeIndex[i] <= remaining {
+			extra = 1
+		}
+		if direction < 0 && strokeIndex[i] > 18-remaining {
+			extra = 1
+		}
+		net[i] = score - direction*(fullRounds+extra)
+	}
+	return net
+}
+
 func AdjustedGrossScore(scores, par, strokeIndex [18]int, courseHandicap int, useInitialCap bool) int {
 	total := 0
 	for i := 0; i < 18; i++ {

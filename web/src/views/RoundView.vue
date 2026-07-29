@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import { ArrowLeft, Flag, Pencil } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 import { api } from '@/api'
-import type { Course, Round } from '@/types'
+import type { Course, Round, Tee } from '@/types'
 import { authState } from '@/auth'
 
 const route = useRoute()
@@ -22,20 +22,19 @@ onMounted(async () => {
   }
 })
 
-function holePar(teeId: number, holeIndex: number) {
+function teeFor(teeId: number): Tee | undefined {
   for (const course of courses.value) {
     const tee = course.tees.find((item) => item.id === teeId)
-    if (tee) return tee.par[holeIndex]
+    if (tee) return tee
   }
-  return 0
+}
+
+function holePar(teeId: number, holeIndex: number) {
+  return teeFor(teeId)?.par[holeIndex] ?? 0
 }
 
 function totalPar(teeId: number) {
-  for (const course of courses.value) {
-    const tee = course.tees.find((item) => item.id === teeId)
-    if (tee) return tee.totalPar
-  }
-  return 0
+  return teeFor(teeId)?.totalPar ?? 0
 }
 
 function ninePar(teeId: number, start: number) {
@@ -129,6 +128,26 @@ function scoreLabel(score: number, par: number) {
               >{{ score || '–' }}</i>
             </b>
             <b>{{ nineScore(participant.scores, 9) }}</b><b>{{ participant.gross }}</b>
+          </div>
+          <div v-if="participant.netScores !== null" class="scorecard-row net-scores">
+            <span>Net</span>
+            <b v-for="(score, i) in participant.netScores.slice(0, 9)" :key="i">
+              <i
+                class="score-mark net-score-mark"
+                :class="scoreClass(score, holePar(participant.teeId, i))"
+                :title="`Net ${scoreLabel(score, holePar(participant.teeId, i)).toLowerCase()} on hole ${i + 1}`"
+              >{{ score || '–' }}</i>
+            </b>
+            <b>{{ nineScore(participant.netScores, 0) }}</b>
+            <b v-for="(score, i) in participant.netScores.slice(9)" :key="i + 9">
+              <i
+                class="score-mark net-score-mark"
+                :class="scoreClass(score, holePar(participant.teeId, i + 9))"
+                :title="`Net ${scoreLabel(score, holePar(participant.teeId, i + 9)).toLowerCase()} on hole ${i + 10}`"
+              >{{ score || '–' }}</i>
+            </b>
+            <b>{{ nineScore(participant.netScores, 9) }}</b>
+            <b>{{ nineScore(participant.netScores, 0) + nineScore(participant.netScores, 9) }}</b>
           </div>
         </div>
         <p v-if="participant.initialParFiveCapUsed || participant.startingHandicapUsed" class="calculation-note">

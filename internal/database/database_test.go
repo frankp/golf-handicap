@@ -102,6 +102,24 @@ func TestMultiPlayerRoundLoadsEveryScorecardAndEstablishesIndexes(t *testing.T) 
 		if i == 0 && (participant.HandicapUsed == nil || participant.NetScore == nil || *participant.NetScore != float64(participant.Gross)-12.5) {
 			t.Errorf("%s handicap/net score not loaded: %+v", participant.PlayerName, participant)
 		}
+		if i == 0 {
+			if participant.NetScores == nil {
+				t.Errorf("%s per-hole net scores not loaded", participant.PlayerName)
+			} else {
+				for hole, net := range participant.NetScores {
+					want := wantScore
+					if hole < 13 {
+						want--
+					}
+					if net != want {
+						t.Errorf("%s hole %d net = %d, want %d", participant.PlayerName, hole+1, net, want)
+					}
+				}
+			}
+		}
+		if i != 0 && participant.NetScores != nil {
+			t.Errorf("%s net scores = %v, want nil without a supplied handicap", participant.PlayerName, participant.NetScores)
+		}
 	}
 
 	loadedPlayers, err := store.Players(ctx)

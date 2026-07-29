@@ -36,6 +36,7 @@ export interface RoundPlayer {
   gross: number
   handicapUsed: number | null
   netScore: number | null
+  netScores: number[] | null
   courseHandicap: number
   adjustedGross: number
   scoreDifferential: number

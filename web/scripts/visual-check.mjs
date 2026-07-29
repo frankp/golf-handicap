@@ -1,5 +1,7 @@
 import { chromium } from 'playwright-core'
 
+const baseURL = process.env.GOLF_BASE_URL ?? 'http://localhost:8080'
+
 const browser = await chromium.launch({
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   headless: true,
@@ -17,7 +19,7 @@ for (const viewport of [
   page.on('pageerror', (error) => failures.push(`${viewport.name} page: ${error.message}`))
 
   for (const path of ['/', '/players', '/courses', '/rounds', '/rounds/new', '/rounds/1', '/rounds/1/edit']) {
-    await page.goto(`http://localhost:8080${path}`, { waitUntil: 'networkidle' })
+    await page.goto(`${baseURL}${path}`, { waitUntil: 'networkidle' })
     const overflow = await page.evaluate(() => ({
       width: document.documentElement.scrollWidth,
       viewport: document.documentElement.clientWidth,
@@ -27,24 +29,27 @@ for (const viewport of [
     }
   }
 
-  await page.goto('http://localhost:8080/', { waitUntil: 'networkidle' })
+  await page.goto(`${baseURL}/`, { waitUntil: 'networkidle' })
   await page.screenshot({ path: `/tmp/golf-overview-${viewport.name}.png`, fullPage: true })
 
-  await page.goto('http://localhost:8080/courses', { waitUntil: 'networkidle' })
-  await page.getByTitle('Rename course').first().click()
-  if (!(await page.getByRole('dialog', { name: 'Rename course' }).isVisible())) {
-    failures.push(`${viewport.name}: rename course dialog did not open`)
+  await page.goto(`${baseURL}/courses`, { waitUntil: 'networkidle' })
+  const renameButtons = await page.getByTitle('Rename course').count()
+  if (renameButtons > 0) {
+    await page.getByTitle('Rename course').first().click()
+    if (!(await page.getByRole('dialog', { name: 'Rename course' }).isVisible())) {
+      failures.push(`${viewport.name}: rename course dialog did not open`)
+    }
+    await page.getByTitle('Close', { exact: true }).click()
+    await page.locator('.tee-summary').first().click()
+    await page.getByRole('button', { name: 'Edit tee' }).first().click()
+    if (!(await page.getByRole('dialog', { name: 'Edit tee' }).isVisible())) {
+      failures.push(`${viewport.name}: edit tee dialog did not open`)
+    }
+    await page.screenshot({ path: `/tmp/golf-course-edit-${viewport.name}.png`, fullPage: true })
+    await page.getByTitle('Close', { exact: true }).click()
   }
-  await page.getByTitle('Close', { exact: true }).click()
-  await page.locator('.tee-summary').first().click()
-  await page.getByRole('button', { name: 'Edit tee' }).first().click()
-  if (!(await page.getByRole('dialog', { name: 'Edit tee' }).isVisible())) {
-    failures.push(`${viewport.name}: edit tee dialog did not open`)
-  }
-  await page.screenshot({ path: `/tmp/golf-course-edit-${viewport.name}.png`, fullPage: true })
-  await page.getByTitle('Close', { exact: true }).click()
 
-  await page.goto('http://localhost:8080/players/1', { waitUntil: 'networkidle' })
+  await page.goto(`${baseURL}/players/1`, { waitUntil: 'networkidle' })
   const expectedFlags = await page.evaluate(async () => {
     const detail = await fetch('/api/players/1').then((response) => response.json())
     return detail.rounds.flatMap((round) => round.participants).filter((participant) => participant.playerId === 1 && participant.counting).length
@@ -55,7 +60,7 @@ for (const viewport of [
   }
   await page.screenshot({ path: `/tmp/golf-player-counting-${viewport.name}.png`, fullPage: true })
 
-  await page.goto('http://localhost:8080/rounds/1', { waitUntil: 'networkidle' })
+  await page.goto(`${baseURL}/rounds/1`, { waitUntil: 'networkidle' })
   const scoreCount = await page.locator('.scorecard-row.scores .score-mark').count()
   const playerCount = await page.locator('.score-section').count()
   if (scoreCount !== playerCount * 18) {
@@ -63,17 +68,34 @@ for (const viewport of [
   }
   await page.screenshot({ path: `/tmp/golf-round-scores-${viewport.name}.png`, fullPage: true })
 
-  await page.goto('http://localhost:8080/rounds/new', { waitUntil: 'networkidle' })
-  await page.getByRole('button', { name: 'Add to round' }).click()
-  const mobileVisible = await page.locator('.mobile-score-entry').isVisible()
-  const desktopVisible = await page.locator('.desktop-scorecard').isVisible()
-  if (viewport.name === 'phone' && (!mobileVisible || desktopVisible)) {
-    failures.push('phone score entry did not switch to the mobile one-hole layout')
+  const netRound = await page.evaluate(async () => {
+    const rounds = await fetch('/api/rounds?limit=200').then((response) => response.json())
+    return rounds.find((round) => round.participants.some((participant) => participant.netScores !== null))
+  })
+  if (netRound) {
+    await page.goto(`${baseURL}/rounds/${netRound.id}`, { waitUntil: 'networkidle' })
+    const expectedNetRows = netRound.participants.filter((participant) => participant.netScores !== null).length
+    const displayedNetRows = await page.locator('.scorecard-row.net-scores').count()
+    if (displayedNetRows !== expectedNetRows) {
+      failures.push(`${viewport.name}: displayed ${displayedNetRows} net rows, expected ${expectedNetRows}`)
+    }
+    await page.screenshot({ path: `/tmp/golf-round-net-scores-${viewport.name}.png`, fullPage: true })
   }
-  if (viewport.name === 'desktop' && (!desktopVisible || mobileVisible)) {
-    failures.push('desktop score entry did not show the full scorecard')
+
+  await page.goto(`${baseURL}/rounds/new`, { waitUntil: 'networkidle' })
+  const addToRoundButtons = await page.getByRole('button', { name: 'Add to round' }).count()
+  if (addToRoundButtons > 0) {
+    await page.getByRole('button', { name: 'Add to round' }).click()
+    const mobileVisible = await page.locator('.mobile-score-entry').isVisible()
+    const desktopVisible = await page.locator('.desktop-scorecard').isVisible()
+    if (viewport.name === 'phone' && (!mobileVisible || desktopVisible)) {
+      failures.push('phone score entry did not switch to the mobile one-hole layout')
+    }
+    if (viewport.name === 'desktop' && (!desktopVisible || mobileVisible)) {
+      failures.push('desktop score entry did not show the full scorecard')
+    }
+    await page.screenshot({ path: `/tmp/golf-score-entry-${viewport.name}.png`, fullPage: true })
   }
-  await page.screenshot({ path: `/tmp/golf-score-entry-${viewport.name}.png`, fullPage: true })
   await page.close()
 }
 

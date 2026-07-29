@@ -64,6 +64,43 @@ func TestAdjustedGrossScore(t *testing.T) {
 	}
 }
 
+func TestNetScoresAllocatesRoundedHandicapByStrokeIndex(t *testing.T) {
+	var scores, strokeIndex [18]int
+	for i := range scores {
+		scores[i] = 6
+		strokeIndex[i] = i + 1
+	}
+
+	got := netScores(scores, strokeIndex, 26.7)
+	total := 0
+	for i, score := range got {
+		want := 5
+		if i < 9 {
+			want = 4
+		}
+		if score != want {
+			t.Errorf("hole %d net score = %d, want %d", i+1, score, want)
+		}
+		total += score
+	}
+	if total != 81 {
+		t.Errorf("net total = %d, want 81", total)
+	}
+}
+
+func TestNetScoresLeavesUnplayedHolesAtZero(t *testing.T) {
+	var scores, strokeIndex [18]int
+	for i := range strokeIndex {
+		strokeIndex[i] = i + 1
+	}
+	scores[0] = 5
+
+	got := netScores(scores, strokeIndex, 1)
+	if got[0] != 4 || got[1] != 0 {
+		t.Errorf("net scores = %v, want first hole 4 and unplayed holes 0", got)
+	}
+}
+
 func TestAdjustedGrossScoreInitialCapAndPickedUp(t *testing.T) {
 	var par, si, scores [18]int
 	par[0], si[0], scores[0] = 4, 1, 0 // picked up on hole 1

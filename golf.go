@@ -12,6 +12,10 @@ func netDoubleBogeyCap(par, courseHandicap, strokeIndex int) int {
 	return handicap.NetDoubleBogeyCap(par, courseHandicap, strokeIndex)
 }
 
+func netScores(scores, strokeIndex [18]int, handicapUsed float64) [18]int {
+	return handicap.NetScores(scores, strokeIndex, handicapUsed)
+}
+
 func adjustedGrossScore(scores, par, strokeIndex [18]int, courseHandicap int, useInitialCap bool) int {
 	return handicap.AdjustedGrossScore(scores, par, strokeIndex, courseHandicap, useInitialCap)
 }
