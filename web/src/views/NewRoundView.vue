@@ -4,6 +4,8 @@ import { ArrowLeft, ArrowRight, Check, Minus, Plus, Trash2 } from '@lucide/vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/api'
 import type { Course, Player, Tee } from '@/types'
+import AppField from '@/components/AppField.vue'
+import AppSelect from '@/components/AppSelect.vue'
 
 interface Entry {
   playerId: number
@@ -29,6 +31,9 @@ const error = ref('')
 
 const course = computed(() => courses.value.find((item) => item.id === courseId.value) ?? null)
 const availablePlayers = computed(() => players.value.filter((player) => !entries.value.some((entry) => entry.playerId === player.id)))
+const courseOptions = computed(() => courses.value.map((item) => ({ value: item.id, label: item.name })))
+const availablePlayerOptions = computed(() => availablePlayers.value.map((item) => ({ value: item.id, label: item.name })))
+const teeOptions = computed(() => course.value?.tees.map((item) => ({ value: item.id, label: item.name })) ?? [])
 const complete = computed(() => entries.value.length > 0 && entries.value.every((entry) => entry.scores.every((score) => score !== null)))
 
 onMounted(async () => {
@@ -62,6 +67,11 @@ onMounted(async () => {
 function changeCourse() {
   const firstTee = course.value?.tees[0]
   if (firstTee) entries.value.forEach((entry) => { entry.teeId = firstTee.id })
+}
+
+function selectCourse(value: number) {
+  courseId.value = value
+  changeCourse()
 }
 
 watch(availablePlayers, (available) => {
@@ -142,12 +152,16 @@ async function submit() {
     <template v-else>
       <section class="round-setup">
         <label>Date played<input v-model="playedOn" type="date" required /></label>
-        <label>Course
-          <select v-model="courseId" required @change="changeCourse">
-            <option :value="null" disabled>Select course</option>
-            <option v-for="item in courses" :key="item.id" :value="item.id">{{ item.name }}</option>
-          </select>
-        </label>
+        <AppField input-id="round-course" label="Course">
+          <AppSelect
+            id="round-course"
+            :model-value="courseId"
+            :options="courseOptions"
+            placeholder="Select course"
+            required
+            @update:model-value="selectCourse"
+          />
+        </AppField>
         <label class="notes-field">Notes <span class="optional">Optional</span><input v-model.trim="notes" placeholder="Conditions, event, or context" /></label>
       </section>
 
@@ -155,11 +169,15 @@ async function submit() {
       <p v-else-if="players.length === 0" class="alert">Add at least one player before recording a round.</p>
       <template v-else>
         <section class="player-picker">
-          <label>Add player
-            <select v-model="playerToAdd" :disabled="availablePlayers.length === 0">
-              <option v-for="item in availablePlayers" :key="item.id" :value="item.id">{{ item.name }}</option>
-            </select>
-          </label>
+          <AppField input-id="round-player" label="Add player">
+            <AppSelect
+              id="round-player"
+              v-model="playerToAdd"
+              :options="availablePlayerOptions"
+              placeholder="No players available"
+              :disabled="availablePlayers.length === 0"
+            />
+          </AppField>
           <button class="button secondary" :disabled="!playerToAdd" @click="addPlayer"><Plus :size="18" /> Add to round</button>
         </section>
 
@@ -170,9 +188,13 @@ async function submit() {
           </div>
           <div v-for="(entry, entryIndex) in entries" :key="entry.playerId" class="score-grid score-grid-row">
             <strong class="player-cell">{{ player(entry.playerId).name }}</strong>
-            <select v-model="entry.teeId" class="tee-cell" :aria-label="`${player(entry.playerId).name} tee`">
-              <option v-for="item in course?.tees" :key="item.id" :value="item.id">{{ item.name }}</option>
-            </select>
+            <AppSelect
+              :id="`desktop-player-${entry.playerId}-tee`"
+              v-model="entry.teeId"
+              :options="teeOptions"
+              :aria-label="`${player(entry.playerId).name} tee`"
+              trigger-class="tee-cell desktop-tee-select"
+            />
             <input v-model="entry.handicapUsed" class="handicap-cell" type="number" min="-20" max="80" step="0.1" :aria-label="`${player(entry.playerId).name} handicap used`" />
             <input v-for="hole in 18" :key="hole" v-model.number="entry.scores[hole - 1]" type="number" min="0" max="30" required :aria-label="`${player(entry.playerId).name}, hole ${hole}`" />
             <b>{{ frontNine(entry) || '—' }}</b><b>{{ backNine(entry) || '—' }}</b><b>{{ total(entry) || '—' }}</b>
@@ -190,7 +212,13 @@ async function submit() {
           <article v-for="(entry, entryIndex) in entries" :key="entry.playerId" class="mobile-player-score">
             <header>
               <div><strong>{{ player(entry.playerId).name }}</strong><span>Par {{ tee(entry.teeId)?.par[mobileHole] }} · SI {{ tee(entry.teeId)?.strokeIndex[mobileHole] }}</span></div>
-              <select v-model="entry.teeId" :aria-label="`${player(entry.playerId).name} tee`"><option v-for="item in course?.tees" :key="item.id" :value="item.id">{{ item.name }}</option></select>
+              <AppSelect
+                :id="`mobile-player-${entry.playerId}-tee`"
+                v-model="entry.teeId"
+                :options="teeOptions"
+                :aria-label="`${player(entry.playerId).name} tee`"
+                trigger-class="mobile-tee-select"
+              />
             </header>
             <label class="mobile-handicap">Handicap used <span class="optional">Optional</span><input v-model="entry.handicapUsed" type="number" min="-20" max="80" step="0.1" inputmode="decimal" /></label>
             <div class="score-stepper">

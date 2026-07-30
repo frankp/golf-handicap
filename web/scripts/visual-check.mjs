@@ -226,6 +226,18 @@ for (const viewport of [
   }
 
   await page.goto(`${baseURL}/rounds/new`, { waitUntil: 'networkidle' })
+  const visibleNativeSelects = await page.locator('select:visible').count()
+  if (visibleNativeSelects !== 0) {
+    failures.push(`${viewport.name}: record round still displays ${visibleNativeSelects} native select controls`)
+  }
+  const courseSelect = page.getByLabel('Course', { exact: true })
+  const playerSelect = page.getByLabel('Add player', { exact: true })
+  if (await courseSelect.count() !== 1 || await courseSelect.getAttribute('role') !== 'combobox') {
+    failures.push(`${viewport.name}: Course does not use an accessible select`)
+  }
+  if (await playerSelect.count() !== 1 || await playerSelect.getAttribute('role') !== 'combobox') {
+    failures.push(`${viewport.name}: Add player does not use an accessible select`)
+  }
   const addToRoundButtons = await page.getByRole('button', { name: 'Add to round' }).count()
   if (addToRoundButtons > 0) {
     await page.getByRole('button', { name: 'Add to round' }).click()

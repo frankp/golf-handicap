@@ -218,7 +218,7 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 2px 
 
 .round-setup { display: grid; grid-template-columns: 170px 240px 1fr; gap: 14px; padding: 18px; background: white; border: 1px solid var(--line); }
 .player-picker { margin-top: 18px; padding: 14px 18px; display: flex; align-items: end; gap: 10px; background: #e9efec; border: 1px solid #cad5d0; }
-.player-picker label { width: 260px; }
+.player-picker .form-field { width: 260px; }
 .desktop-scorecard { margin-top: 18px; overflow-x: auto; border: 1px solid var(--line); background: white; }
 .score-grid { min-width: 1185px; display: grid; grid-template-columns: 130px 90px 52px repeat(18, 38px) repeat(3, 46px) 38px; align-items: center; }
 .score-grid > * { min-width: 0; }
@@ -227,6 +227,7 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 2px 
 .score-grid-row { min-height: 54px; padding: 6px 0; border-top: 1px solid var(--line); }
 .score-grid-row > strong, .score-grid-row > b { padding: 0 8px; font-size: 12px; text-align: center; }
 .score-grid-row .player-cell { text-align: left; }
+.score-grid-row .desktop-tee-select { width: 82px; height: 38px; padding: 0 6px; font-size: 12px; }
 .score-grid-row input { width: 34px; height: 38px; padding: 0; text-align: center; }
 .score-grid-row input.handicap-cell { width: 46px; }
 .score-grid-row select { width: 84px; height: 38px; padding: 0 5px; font-size: 11px; }
@@ -295,7 +296,7 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 2px 
   .round-setup { grid-template-columns: 1fr 1fr; padding: 14px; }
   .round-setup .notes-field { grid-column: 1 / -1; }
   .player-picker { margin-left: -16px; margin-right: -16px; padding: 12px 16px; }
-  .player-picker label { width: auto; flex: 1; }
+  .player-picker .form-field { width: auto; flex: 1; }
   .mobile-score-entry { margin: 18px -16px 0; padding-bottom: 2px; }
   .hole-nav { height: 82px; display: grid; grid-template-columns: 52px 1fr 52px; place-items: center; background: var(--green); color: white; }
   .hole-nav .icon-button:hover { background: #ffffff1a; }
@@ -310,7 +311,7 @@ input:focus, select:focus { border-color: var(--green-2); box-shadow: 0 0 0 2px 
   .mobile-player-score > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
   .mobile-player-score > header div { display: grid; gap: 3px; }
   .mobile-player-score > header span { color: var(--muted); font-size: 11px; }
-  .mobile-player-score > header select { width: 100px; height: 36px; }
+  .mobile-player-score > header .mobile-tee-select { width: 100px; height: 36px; }
   .mobile-handicap { grid-template-columns: 1fr auto 72px; align-items: center; gap: 5px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
   .mobile-handicap .optional { text-align: right; }
   .mobile-handicap input { height: 36px; text-align: center; }
