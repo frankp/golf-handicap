@@ -96,6 +96,18 @@ for (const viewport of [
     if (displayedNetRows !== expectedNetRows) {
       failures.push(`${viewport.name}: displayed ${displayedNetRows} default net rows, expected ${expectedNetRows}`)
     }
+    const visibleMobileNines = await page.locator('.mobile-nine:visible').count()
+    const expectedMobileNines = viewport.name === 'phone' ? netRound.participants.length * 2 : 0
+    if (visibleMobileNines !== expectedMobileNines) {
+      failures.push(`${viewport.name}: displayed ${visibleMobileNines} mobile nine-hole cards, expected ${expectedMobileNines}`)
+    }
+    if (viewport.name === 'phone') {
+      const overflowingNines = await page.locator('.mobile-nine:visible').evaluateAll((cards) =>
+        cards.filter((card) => card.scrollWidth > card.clientWidth + 1).length)
+      if (overflowingNines > 0) {
+        failures.push(`${viewport.name}: ${overflowingNines} mobile nine-hole cards overflow horizontally`)
+      }
+    }
     await page.screenshot({ path: `/tmp/golf-round-net-scores-${viewport.name}.png`, fullPage: true })
     await page.getByRole('button', { name: 'Hide net' }).click()
     const hiddenNetRows = await page.locator('.scorecard-row.net-scores').count()
