@@ -3,9 +3,17 @@ import { onMounted, ref } from 'vue'
 import { ArrowRight, Pencil, Plus, Trash2 } from '@lucide/vue'
 import { api } from '@/api'
 import type { HandicapCategory, Player } from '@/types'
+import AppField from '@/components/AppField.vue'
 import AppModal from '@/components/AppModal.vue'
+import AppNumberField from '@/components/AppNumberField.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { authState } from '@/auth'
+
+const handicapCategories: ReadonlyArray<{ value: HandicapCategory; label: string }> = [
+  { value: 'men', label: 'Men/Boys' },
+  { value: 'women', label: 'Women/Girls' },
+]
 
 const players = ref<Player[]>([])
 const loading = ref(true)
@@ -13,8 +21,8 @@ const error = ref('')
 const showAdd = ref(false)
 const editing = ref<Player | null>(null)
 const saving = ref(false)
-const form = ref<{ name: string; category: HandicapCategory; starting: string; official: string; officialDate: string }>({
-  name: '', category: 'men', starting: '', official: '', officialDate: '',
+const form = ref<{ name: string; category: HandicapCategory; starting?: number; official?: number; officialDate: string }>({
+  name: '', category: 'men', starting: undefined, official: undefined, officialDate: '',
 })
 
 onMounted(load)
@@ -32,7 +40,7 @@ async function load() {
 }
 
 function openAdd() {
-  form.value = { name: '', category: 'men', starting: '', official: '', officialDate: '' }
+  form.value = { name: '', category: 'men', starting: undefined, official: undefined, officialDate: '' }
   showAdd.value = true
 }
 
@@ -41,8 +49,8 @@ function openEdit(player: Player) {
   form.value = {
     name: player.name,
     category: player.handicapCategory,
-    starting: player.startingDailyHandicap?.toString() ?? '',
-    official: player.officialHandicapIndex?.toString() ?? '',
+    starting: player.startingDailyHandicap ?? undefined,
+    official: player.officialHandicapIndex ?? undefined,
     officialDate: player.officialHandicapDate ?? '',
   }
 }
@@ -53,7 +61,7 @@ async function saveAdd() {
     await api.createPlayer({
       name: form.value.name,
       handicapCategory: form.value.category,
-      startingDailyHandicap: form.value.starting === '' ? null : Number(form.value.starting),
+      startingDailyHandicap: form.value.starting ?? null,
     })
     showAdd.value = false
     await load()
@@ -71,8 +79,8 @@ async function saveEdit() {
     await api.updatePlayer(editing.value.id, {
       name: form.value.name,
       handicapCategory: form.value.category,
-      startingDailyHandicap: form.value.starting === '' ? null : Number(form.value.starting),
-      officialHandicapIndex: form.value.official === '' ? null : Number(form.value.official),
+      startingDailyHandicap: form.value.starting ?? null,
+      officialHandicapIndex: form.value.official ?? null,
       officialHandicapDate: form.value.officialDate || null,
     })
     editing.value = null
@@ -129,21 +137,37 @@ async function remove(player: Player) {
 
     <AppModal v-if="showAdd" title="Add player" @close="showAdd = false">
       <form class="form-stack" @submit.prevent="saveAdd">
-        <label>Player name<input v-model.trim="form.name" required autofocus /></label>
-        <label>Handicap category<select v-model="form.category"><option value="men">Men/Boys</option><option value="women">Women/Girls</option></select></label>
-        <label>Starting Daily Handicap <span class="optional">Optional</span><input v-model="form.starting" type="number" min="0" max="99" /></label>
+        <AppField input-id="add-player-name" label="Player name">
+          <input id="add-player-name" v-model.trim="form.name" required autofocus />
+        </AppField>
+        <AppField input-id="add-player-category" label="Handicap category">
+          <AppSelect id="add-player-category" v-model="form.category" :options="handicapCategories" />
+        </AppField>
+        <AppField input-id="add-player-starting-handicap" label="Starting Daily Handicap" hint="Optional">
+          <AppNumberField id="add-player-starting-handicap" v-model="form.starting" :min="0" :max="99" />
+        </AppField>
         <div class="form-actions"><button type="button" class="button ghost" @click="showAdd = false">Cancel</button><button class="button" :disabled="saving">Add player</button></div>
       </form>
     </AppModal>
 
     <AppModal v-if="editing" title="Edit player" @close="editing = null">
       <form class="form-stack" @submit.prevent="saveEdit">
-        <label>Player name<input v-model.trim="form.name" required /></label>
-        <label>Handicap category<select v-model="form.category"><option value="men">Men/Boys</option><option value="women">Women/Girls</option></select></label>
-        <label>Starting Daily Handicap <span class="optional">First three rounds</span><input v-model="form.starting" type="number" min="0" max="99" /></label>
+        <AppField input-id="edit-player-name" label="Player name">
+          <input id="edit-player-name" v-model.trim="form.name" required />
+        </AppField>
+        <AppField input-id="edit-player-category" label="Handicap category">
+          <AppSelect id="edit-player-category" v-model="form.category" :options="handicapCategories" />
+        </AppField>
+        <AppField input-id="edit-player-starting-handicap" label="Starting Daily Handicap" hint="First three rounds">
+          <AppNumberField id="edit-player-starting-handicap" v-model="form.starting" :min="0" :max="99" />
+        </AppField>
         <div class="field-pair">
-          <label>Official Handicap Index <span class="optional">Reference only</span><input v-model="form.official" type="number" min="-10" max="54" step="0.1" /></label>
-          <label>Official index date<input v-model="form.officialDate" type="date" :required="form.official !== ''" /></label>
+          <AppField input-id="edit-player-official-handicap" label="Official Handicap Index" hint="Reference only">
+            <AppNumberField id="edit-player-official-handicap" v-model="form.official" :min="-10" :max="54" :step="0.1" />
+          </AppField>
+          <AppField input-id="edit-player-official-date" label="Official index date">
+            <input id="edit-player-official-date" v-model="form.officialDate" type="date" :required="form.official !== undefined" />
+          </AppField>
         </div>
         <div class="form-actions"><button type="button" class="button ghost" @click="editing = null">Cancel</button><button class="button" :disabled="saving">Save changes</button></div>
       </form>
