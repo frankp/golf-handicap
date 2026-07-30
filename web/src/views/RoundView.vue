@@ -34,10 +34,6 @@ function holePar(teeId: number, holeIndex: number) {
   return teeFor(teeId)?.par[holeIndex] ?? 0
 }
 
-function totalPar(teeId: number) {
-  return teeFor(teeId)?.totalPar ?? 0
-}
-
 function ninePar(teeId: number, start: number) {
   let total = 0
   for (let i = start; i < start + 9; i++) total += holePar(teeId, i)
@@ -105,74 +101,23 @@ function scoreLabel(score: number, par: number) {
             <span>HI <b>{{ participant.handicapIndexAfter?.toFixed(1) ?? '—' }}</b></span>
           </div>
         </header>
-        <div class="scorecard-wrap desktop-round-scorecard">
-          <div class="scorecard-row">
-            <span>Hole</span>
-            <b v-for="hole in 9" :key="hole">{{ hole }}</b><b>Out</b>
-            <b v-for="hole in 9" :key="hole + 9">{{ hole + 9 }}</b><b>In</b><b>Total</b>
-          </div>
-          <div class="scorecard-row pars">
-            <span>Par</span>
-            <b v-for="hole in 9" :key="hole">{{ holePar(participant.teeId, hole - 1) }}</b><b>{{ ninePar(participant.teeId, 0) }}</b>
-            <b v-for="hole in 9" :key="hole + 9">{{ holePar(participant.teeId, hole + 8) }}</b><b>{{ ninePar(participant.teeId, 9) }}</b><b>{{ totalPar(participant.teeId) }}</b>
-          </div>
-          <div class="scorecard-row scores">
-            <span>Score</span>
-            <b v-for="(score, i) in participant.scores.slice(0, 9)" :key="i">
-              <i
-                class="score-mark"
-                :class="scoreClass(score, holePar(participant.teeId, i))"
-                :title="`${scoreLabel(score, holePar(participant.teeId, i))} on hole ${i + 1}`"
-              >{{ score || '–' }}</i>
-            </b>
-            <b>{{ nineScore(participant.scores, 0) }}</b>
-            <b v-for="(score, i) in participant.scores.slice(9)" :key="i + 9">
-              <i
-                class="score-mark"
-                :class="scoreClass(score, holePar(participant.teeId, i + 9))"
-                :title="`${scoreLabel(score, holePar(participant.teeId, i + 9))} on hole ${i + 10}`"
-              >{{ score || '–' }}</i>
-            </b>
-            <b>{{ nineScore(participant.scores, 9) }}</b><b>{{ participant.gross }}</b>
-          </div>
-          <div v-if="showNet" class="scorecard-row net-scores">
-            <span>Net</span>
-            <b v-for="(score, i) in participant.netScores.slice(0, 9)" :key="i">
-              <i
-                class="score-mark net-score-mark"
-                :class="scoreClass(score, holePar(participant.teeId, i))"
-                :title="`Net ${scoreLabel(score, holePar(participant.teeId, i)).toLowerCase()} on hole ${i + 1}`"
-              >{{ score || '–' }}</i>
-            </b>
-            <b>{{ nineScore(participant.netScores, 0) }}</b>
-            <b v-for="(score, i) in participant.netScores.slice(9)" :key="i + 9">
-              <i
-                class="score-mark net-score-mark"
-                :class="scoreClass(score, holePar(participant.teeId, i + 9))"
-                :title="`Net ${scoreLabel(score, holePar(participant.teeId, i + 9)).toLowerCase()} on hole ${i + 10}`"
-              >{{ score || '–' }}</i>
-            </b>
-            <b>{{ nineScore(participant.netScores, 9) }}</b>
-            <b>{{ nineScore(participant.netScores, 0) + nineScore(participant.netScores, 9) }}</b>
-          </div>
-        </div>
-        <div class="mobile-round-scorecard">
-          <section v-for="nine in [0, 9]" :key="nine" class="mobile-nine">
+        <div class="round-scorecard">
+          <section v-for="nine in [0, 9]" :key="nine" class="nine-card">
             <header>
               <strong>{{ nine === 0 ? 'Front nine' : 'Back nine' }}</strong>
               <span>{{ nineScore(participant.scores, nine) }}</span>
             </header>
-            <div class="mobile-nine-row mobile-nine-holes">
+            <div class="nine-row nine-holes">
               <span>Hole</span>
               <b v-for="hole in 9" :key="hole">{{ hole + nine }}</b>
               <b>{{ nine === 0 ? 'Out' : 'In' }}</b>
             </div>
-            <div class="mobile-nine-row mobile-nine-pars">
+            <div class="nine-row nine-pars">
               <span>Par</span>
               <b v-for="hole in 9" :key="hole">{{ holePar(participant.teeId, hole + nine - 1) }}</b>
               <b>{{ ninePar(participant.teeId, nine) }}</b>
             </div>
-            <div class="mobile-nine-row mobile-nine-scores">
+            <div class="nine-row nine-scores">
               <span>Score</span>
               <b v-for="(score, i) in participant.scores.slice(nine, nine + 9)" :key="i">
                 <i
@@ -183,7 +128,7 @@ function scoreLabel(score: number, par: number) {
               </b>
               <b>{{ nineScore(participant.scores, nine) }}</b>
             </div>
-            <div v-if="showNet" class="mobile-nine-row mobile-nine-net">
+            <div v-if="showNet" class="nine-row nine-net">
               <span>Net</span>
               <b v-for="(score, i) in participant.netScores.slice(nine, nine + 9)" :key="i">
                 <i
@@ -195,7 +140,7 @@ function scoreLabel(score: number, par: number) {
               <b>{{ nineScore(participant.netScores, nine) }}</b>
             </div>
           </section>
-          <div class="mobile-scorecard-total">
+          <div class="scorecard-total">
             <span>Round total</span>
             <strong>{{ participant.gross }}</strong>
             <template v-if="showNet"><span>Net</span><strong>{{ Math.round(participant.netScore) }}</strong></template>

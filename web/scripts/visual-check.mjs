@@ -78,7 +78,7 @@ for (const viewport of [
   await page.screenshot({ path: `/tmp/golf-player-counting-${viewport.name}.png`, fullPage: true })
 
   await page.goto(`${baseURL}/rounds/1`, { waitUntil: 'networkidle' })
-  const scoreCount = await page.locator('.scorecard-row.scores .score-mark').count()
+  const scoreCount = await page.locator('.nine-scores .score-mark').count()
   const playerCount = await page.locator('.score-section').count()
   if (scoreCount !== playerCount * 18) {
     failures.push(`${viewport.name}: rendered ${scoreCount} score marks for ${playerCount} scorecards`)
@@ -92,25 +92,39 @@ for (const viewport of [
   if (netRound) {
     await page.goto(`${baseURL}/rounds/${netRound.id}`, { waitUntil: 'networkidle' })
     const expectedNetRows = netRound.participants.length
-    const displayedNetRows = await page.locator('.scorecard-row.net-scores').count()
-    if (displayedNetRows !== expectedNetRows) {
-      failures.push(`${viewport.name}: displayed ${displayedNetRows} default net rows, expected ${expectedNetRows}`)
+    const displayedNetRows = await page.locator('.nine-net').count()
+    if (displayedNetRows !== expectedNetRows * 2) {
+      failures.push(`${viewport.name}: displayed ${displayedNetRows} default net rows, expected ${expectedNetRows * 2}`)
     }
-    const visibleMobileNines = await page.locator('.mobile-nine:visible').count()
-    const expectedMobileNines = viewport.name === 'phone' ? netRound.participants.length * 2 : 0
-    if (visibleMobileNines !== expectedMobileNines) {
-      failures.push(`${viewport.name}: displayed ${visibleMobileNines} mobile nine-hole cards, expected ${expectedMobileNines}`)
+    const visibleNines = await page.locator('.nine-card:visible').count()
+    const expectedNines = netRound.participants.length * 2
+    if (visibleNines !== expectedNines) {
+      failures.push(`${viewport.name}: displayed ${visibleNines} nine-hole cards, expected ${expectedNines}`)
     }
-    if (viewport.name === 'phone') {
-      const overflowingNines = await page.locator('.mobile-nine:visible').evaluateAll((cards) =>
-        cards.filter((card) => card.scrollWidth > card.clientWidth + 1).length)
-      if (overflowingNines > 0) {
-        failures.push(`${viewport.name}: ${overflowingNines} mobile nine-hole cards overflow horizontally`)
-      }
+    const firstScorecardLayout = await page.locator('.round-scorecard').first().evaluate((scorecard) => {
+      const cards = [...scorecard.querySelectorAll('.nine-card')]
+      return cards.slice(0, 2).map((card) => {
+        const bounds = card.getBoundingClientRect()
+        return { left: bounds.left, top: bounds.top }
+      })
+    })
+    const ninesAreSideBySide = firstScorecardLayout.length === 2
+      && Math.abs(firstScorecardLayout[0].top - firstScorecardLayout[1].top) < 1
+      && firstScorecardLayout[1].left > firstScorecardLayout[0].left
+    if (viewport.name === 'desktop' && !ninesAreSideBySide) {
+      failures.push(`${viewport.name}: front and back nines are not side by side`)
+    }
+    if (viewport.name === 'phone' && ninesAreSideBySide) {
+      failures.push(`${viewport.name}: front and back nines should stack`)
+    }
+    const overflowingNines = await page.locator('.nine-card:visible').evaluateAll((cards) =>
+      cards.filter((card) => card.scrollWidth > card.clientWidth + 1).length)
+    if (overflowingNines > 0) {
+      failures.push(`${viewport.name}: ${overflowingNines} nine-hole cards overflow horizontally`)
     }
     await page.screenshot({ path: `/tmp/golf-round-net-scores-${viewport.name}.png`, fullPage: true })
     await page.getByRole('button', { name: 'Hide net' }).click()
-    const hiddenNetRows = await page.locator('.scorecard-row.net-scores').count()
+    const hiddenNetRows = await page.locator('.nine-net').count()
     if (hiddenNetRows !== 0) {
       failures.push(`${viewport.name}: displayed net rows after the toggle was disabled`)
     }
