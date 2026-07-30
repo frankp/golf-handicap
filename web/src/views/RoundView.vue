@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { api } from '@/api'
 import type { Course, Round, Tee } from '@/types'
 import { authState } from '@/auth'
+import AppSwitch from '@/components/AppSwitch.vue'
 
 const route = useRoute()
 const round = ref<Round | null>(null)
@@ -79,9 +80,7 @@ function scoreLabel(score: number, par: number) {
         <RouterLink v-if="authState.authenticated" class="button secondary" :to="`/rounds/${round.id}/edit`"><Pencil :size="17" /> Edit round</RouterLink>
       </header>
       <div class="score-toolbar">
-        <button class="net-toggle" type="button" :aria-pressed="showNet" @click="showNet = !showNet">
-          {{ showNet ? 'Hide net' : 'Show net' }}
-        </button>
+        <AppSwitch id="show-net-scores" v-model="showNet" label="Show net" />
         <div class="score-legend" aria-label="Score legend">
           <span><i class="score-mark score-eagle">−2</i>Eagle+</span>
           <span><i class="score-mark score-birdie">−1</i>Birdie</span>

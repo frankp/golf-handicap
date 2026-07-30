@@ -1,20 +1,42 @@
 <script setup lang="ts">
 import { X } from '@lucide/vue'
+import {
+  DialogClose,
+  DialogContent,
+  DialogOverlay,
+  DialogPortal,
+  DialogRoot,
+  DialogTitle,
+} from 'reka-ui'
 
 defineProps<{ title: string; wide?: boolean }>()
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>()
+
+function handleOpenChange(open: boolean) {
+  if (!open) emit('close')
+}
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="$emit('close')">
-    <section class="modal" :class="{ 'modal-wide': wide }" role="dialog" aria-modal="true" :aria-label="title">
-      <header class="modal-header">
-        <h2>{{ title }}</h2>
-        <button class="icon-button" type="button" title="Close" @click="$emit('close')">
-          <X :size="20" />
-        </button>
-      </header>
-      <div class="modal-body"><slot /></div>
-    </section>
-  </div>
+  <DialogRoot :open="true" @update:open="handleOpenChange">
+    <DialogPortal>
+      <DialogOverlay class="modal-backdrop" />
+      <DialogContent
+        as="section"
+        class="modal"
+        :class="{ 'modal-wide': wide }"
+        :aria-describedby="undefined"
+      >
+        <header class="modal-header">
+          <DialogTitle as-child><h2>{{ title }}</h2></DialogTitle>
+          <DialogClose as-child>
+            <button class="icon-button" type="button" title="Close">
+              <X :size="20" />
+            </button>
+          </DialogClose>
+        </header>
+        <div class="modal-body"><slot /></div>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>

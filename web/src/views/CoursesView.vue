@@ -3,7 +3,9 @@ import { computed, onMounted, ref } from 'vue'
 import { ChevronDown, ChevronUp, Pencil, Plus, Trash2 } from '@lucide/vue'
 import { api } from '@/api'
 import type { Course, Tee } from '@/types'
+import AppField from '@/components/AppField.vue'
 import AppModal from '@/components/AppModal.vue'
+import AppNumberField from '@/components/AppNumberField.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { authState } from '@/auth'
 
@@ -75,6 +77,22 @@ function openEditTee(course: Course, tee: Tee) {
 function openEditCourse(course: Course) {
   editingCourse.value = course
   courseName.value = course.name
+}
+
+function updateRating(value: number | undefined) {
+  if (value !== undefined) form.value.rating = value
+}
+
+function updateSlope(value: number | undefined) {
+  if (value !== undefined) form.value.slope = value
+}
+
+function updatePar(index: number, value: number | undefined) {
+  if (value !== undefined) form.value.par[index] = value
+}
+
+function updateStrokeIndex(index: number, value: number | undefined) {
+  if (value !== undefined) form.value.strokeIndex[index] = value
 }
 
 async function save() {
@@ -169,17 +187,41 @@ async function removeTee(id: number, label: string) {
     <AppModal v-if="showEditor" :title="editingTeeId === null ? 'Add course tee' : 'Edit tee'" wide @close="showEditor = false">
       <form class="form-stack" @submit.prevent="save">
         <div class="field-grid four">
-          <label>Course name<input v-model.trim="form.name" :disabled="editingTeeId !== null" required /></label>
-          <label>Tee name<input v-model.trim="form.tee" required /></label>
-          <label>Course Rating<input v-model.number="form.rating" type="number" min="40" max="90" step="0.1" required /></label>
-          <label>Slope Rating<input v-model.number="form.slope" type="number" min="55" max="155" required /></label>
+          <AppField input-id="tee-course-name" label="Course name">
+            <input id="tee-course-name" v-model.trim="form.name" :disabled="editingTeeId !== null" required />
+          </AppField>
+          <AppField input-id="tee-name" label="Tee name">
+            <input id="tee-name" v-model.trim="form.tee" required />
+          </AppField>
+          <AppField input-id="tee-course-rating" label="Course Rating">
+            <AppNumberField id="tee-course-rating" :model-value="form.rating" :min="40" :max="90" :step="0.1" required @update:model-value="updateRating" />
+          </AppField>
+          <AppField input-id="tee-slope-rating" label="Slope Rating">
+            <AppNumberField id="tee-slope-rating" :model-value="form.slope" :min="55" :max="155" required @update:model-value="updateSlope" />
+          </AppField>
         </div>
         <div class="course-editor">
           <div class="course-editor-header"><span>Hole</span><span>Par</span><span>Stroke index</span></div>
           <div v-for="hole in 18" :key="hole" class="course-editor-row">
             <strong>{{ hole }}</strong>
-            <input v-model.number="form.par[hole - 1]" :aria-label="`Hole ${hole} par`" type="number" min="3" max="6" required />
-            <input v-model.number="form.strokeIndex[hole - 1]" :aria-label="`Hole ${hole} stroke index`" type="number" min="1" max="18" required />
+            <AppNumberField
+              :id="`hole-${hole}-par`"
+              :model-value="form.par[hole - 1]"
+              :aria-label="`Hole ${hole} par`"
+              :min="3"
+              :max="6"
+              required
+              @update:model-value="updatePar(hole - 1, $event)"
+            />
+            <AppNumberField
+              :id="`hole-${hole}-stroke-index`"
+              :model-value="form.strokeIndex[hole - 1]"
+              :aria-label="`Hole ${hole} stroke index`"
+              :min="1"
+              :max="18"
+              required
+              @update:model-value="updateStrokeIndex(hole - 1, $event)"
+            />
           </div>
         </div>
         <p v-if="!validStrokeIndexes" class="field-error">Stroke indexes must use each number from 1 to 18 once.</p>
@@ -189,7 +231,9 @@ async function removeTee(id: number, label: string) {
 
     <AppModal v-if="editingCourse" title="Rename course" @close="editingCourse = null">
       <form class="form-stack" @submit.prevent="saveCourse">
-        <label>Course name<input v-model.trim="courseName" required autofocus /></label>
+        <AppField input-id="rename-course-name" label="Course name">
+          <input id="rename-course-name" v-model.trim="courseName" required autofocus />
+        </AppField>
         <div class="form-actions"><button type="button" class="button ghost" @click="editingCourse = null">Cancel</button><button class="button" :disabled="saving">Save changes</button></div>
       </form>
     </AppModal>
