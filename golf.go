@@ -5,27 +5,32 @@ import "golf/internal/handicap"
 type Course = handicap.Course
 type Round = handicap.Round
 type Data = handicap.Data
+type HandicapCategory = handicap.HandicapCategory
 
 const qualifyingRounds = handicap.QualifyingRounds
+const (
+	men   = handicap.Men
+	women = handicap.Women
+)
 
-func netDoubleBogeyCap(par, courseHandicap, strokeIndex int) int {
-	return handicap.NetDoubleBogeyCap(par, courseHandicap, strokeIndex)
+func netDoubleBogeyCap(par, dailyHandicap, strokeIndex int) int {
+	return handicap.NetDoubleBogeyCap(par, dailyHandicap, strokeIndex)
 }
 
 func netScores(scores, strokeIndex [18]int, handicapUsed float64) [18]int {
 	return handicap.NetScores(scores, strokeIndex, handicapUsed)
 }
 
-func adjustedGrossScore(scores, par, strokeIndex [18]int, courseHandicap int, useInitialCap bool) int {
-	return handicap.AdjustedGrossScore(scores, par, strokeIndex, courseHandicap, useInitialCap)
+func adjustedGrossScore(scores, par, strokeIndex [18]int, dailyHandicap int, useInitialCap bool) int {
+	return handicap.AdjustedGrossScore(scores, par, strokeIndex, dailyHandicap, useInitialCap)
 }
 
 func scoreDifferential(adjustedGross int, rating float64, slope int) float64 {
 	return handicap.ScoreDifferential(adjustedGross, rating, slope)
 }
 
-func courseHandicap(index, rating float64, slope, par int) int {
-	return handicap.CourseHandicap(index, rating, slope, par)
+func dailyHandicap(index, rating float64, slope, par int, category handicap.HandicapCategory) int {
+	return handicap.DailyHandicap(index, rating, slope, par, category)
 }
 
 func totalPar(par [18]int) int {

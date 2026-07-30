@@ -34,6 +34,106 @@ func TestEmptyPlayerListIsAnEmptyCollection(t *testing.T) {
 	}
 }
 
+func TestPlayerHandicapCategoryDefaultsToMenAndCanBeUpdated(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := context.Background()
+
+	player, err := store.CreatePlayer(ctx, "Frank", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if player.HandicapCategory != handicap.Men {
+		t.Fatalf("default handicap category = %q, want %q", player.HandicapCategory, handicap.Men)
+	}
+
+	category := handicap.Women
+	player, err = store.UpdatePlayer(ctx, player.ID, player.Name, &category, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if player.HandicapCategory != handicap.Women {
+		t.Fatalf("updated handicap category = %q, want %q", player.HandicapCategory, handicap.Women)
+	}
+
+	invalid := handicap.HandicapCategory("other")
+	if _, err := store.UpdatePlayer(ctx, player.ID, player.Name, &invalid, nil, nil, nil); err == nil {
+		t.Fatal("invalid handicap category should be rejected")
+	}
+}
+
+func TestOpenRecalculatesDailyHandicapWhenFormulaVersionChanges(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	store, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	course := handicap.Course{Name: "Test Club", Tee: "White", Rating: 72, Slope: 113}
+	for i := range course.Par {
+		course.Par[i] = 4
+		course.StrokeIndex[i] = i + 1
+	}
+	tee, err := store.CreateTee(ctx, course)
+	if err != nil {
+		t.Fatal(err)
+	}
+	starting := 10
+	player, err := store.CreatePlayer(ctx, "Frank", nil, &starting)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scores := [18]int{}
+	for i := range scores {
+		scores[i] = 5
+	}
+	round, err := store.CreateRound(ctx, CreateRoundInput{
+		PlayedOn:     "2026-07-30",
+		CourseID:     tee.CourseID,
+		Participants: []RoundEntry{{PlayerID: player.ID, TeeID: tee.ID, Scores: scores}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := round.Participants[0].DailyHandicap; got != starting {
+		t.Fatalf("initial Daily Handicap = %d, want %d", got, starting)
+	}
+	if _, err := store.db.ExecContext(ctx, `UPDATE round_players SET daily_handicap = 99`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `UPDATE app_metadata SET value = 'old' WHERE key = 'handicap_formula_version'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	round, err = store.Round(ctx, round.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := round.Participants[0].DailyHandicap; got != starting {
+		t.Fatalf("migrated Daily Handicap = %d, want %d", got, starting)
+	}
+	var version string
+	if err := store.db.QueryRowContext(ctx,
+		`SELECT value FROM app_metadata WHERE key = 'handicap_formula_version'`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != handicapFormulaVersion {
+		t.Fatalf("formula version = %q, want %q", version, handicapFormulaVersion)
+	}
+}
+
 func TestMultiPlayerRoundLoadsEveryScorecardAndEstablishesIndexes(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -59,7 +159,7 @@ func TestMultiPlayerRoundLoadsEveryScorecardAndEstablishesIndexes(t *testing.T) 
 			starting := 10
 			startingHandicap = &starting
 		}
-		player, err := store.CreatePlayer(ctx, name, startingHandicap)
+		player, err := store.CreatePlayer(ctx, name, nil, startingHandicap)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -107,15 +207,15 @@ func TestMultiPlayerRoundLoadsEveryScorecardAndEstablishesIndexes(t *testing.T) 
 		if i == 0 && (participant.HandicapUsed == nil || participant.NetScore != float64(participant.Gross)-12.5) {
 			t.Errorf("%s handicap/net score not loaded: %+v", participant.PlayerName, participant)
 		}
-		netHandicap := float64(participant.CourseHandicap)
+		netHandicap := float64(participant.DailyHandicap)
 		if participant.HandicapUsed != nil {
 			netHandicap = *participant.HandicapUsed
 		}
 		if participant.NetScore != float64(participant.Gross)-netHandicap {
 			t.Errorf("%s net score = %v, want %v", participant.PlayerName, participant.NetScore, float64(participant.Gross)-netHandicap)
 		}
-		if i == 1 && (participant.HandicapUsed != nil || participant.CourseHandicap != 10 || participant.NetScore != float64(participant.Gross)-10) {
-			t.Errorf("%s did not use historical Course Handicap fallback: %+v", participant.PlayerName, participant)
+		if i == 1 && (participant.HandicapUsed != nil || participant.DailyHandicap != 10 || participant.NetScore != float64(participant.Gross)-10) {
+			t.Errorf("%s did not use historical Daily Handicap fallback: %+v", participant.PlayerName, participant)
 		}
 		wantNetScores := handicap.NetScores(participant.Scores, course.StrokeIndex, netHandicap)
 		if participant.NetScores != wantNetScores {
@@ -186,7 +286,7 @@ func TestCourseAndTeeUpdatesPreserveRoundsAndRecalculate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	player, err := store.CreatePlayer(ctx, "Frank", nil)
+	player, err := store.CreatePlayer(ctx, "Frank", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

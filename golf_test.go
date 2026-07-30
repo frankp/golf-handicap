@@ -8,11 +8,11 @@ import (
 
 func TestNetDoubleBogeyCap(t *testing.T) {
 	cases := []struct {
-		name           string
-		par            int
-		courseHandicap int
-		strokeIndex    int
-		want           int
+		name          string
+		par           int
+		dailyHandicap int
+		strokeIndex   int
+		want          int
 	}{
 		{"no stroke received", 4, 10, 15, 6},    // par+2, CH doesn't reach SI
 		{"one stroke received", 4, 17, 7, 7},    // par+2+1, CH>=SI
@@ -25,17 +25,17 @@ func TestNetDoubleBogeyCap(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := netDoubleBogeyCap(c.par, c.courseHandicap, c.strokeIndex)
+			got := netDoubleBogeyCap(c.par, c.dailyHandicap, c.strokeIndex)
 			if got != c.want {
 				t.Errorf("netDoubleBogeyCap(%d, %d, %d) = %d, want %d",
-					c.par, c.courseHandicap, c.strokeIndex, got, c.want)
+					c.par, c.dailyHandicap, c.strokeIndex, got, c.want)
 			}
 		})
 	}
 }
 
 // TestAdjustedGrossScore mirrors Norman's example from the CONGU/WHS
-// worked examples (Appendix I, II.A): Course Handicap 15, three holes
+// worked examples (Appendix I, II.A): playing handicap 15, three holes
 // blown up to 9 strokes each, capped by Net Double Bogey.
 //
 //	Hole 10, Par 4, SI 6  -> cap 4+2+1=7 (15 >= 6)
@@ -45,7 +45,7 @@ func TestNetDoubleBogeyCap(t *testing.T) {
 // The remaining 15 holes are played exactly at par (no cap applies), so
 // the expected adjusted total is verifiable by direct arithmetic.
 func TestAdjustedGrossScore(t *testing.T) {
-	const courseHandicap = 15
+	const dailyHandicap = 15
 
 	var par, si, scores [18]int
 	for i := 0; i < 18; i++ {
@@ -58,7 +58,7 @@ func TestAdjustedGrossScore(t *testing.T) {
 	otherHolesTotal := 15 * 4 // the 15 holes played exactly at par
 	wantTotal := otherHolesTotal + 7 + 6 + 7
 
-	got := adjustedGrossScore(scores, par, si, courseHandicap, false)
+	got := adjustedGrossScore(scores, par, si, dailyHandicap, false)
 	if got != wantTotal {
 		t.Errorf("adjustedGrossScore = %d, want %d", got, wantTotal)
 	}
@@ -128,22 +128,26 @@ func TestScoreDifferential(t *testing.T) {
 	}
 }
 
-func TestCourseHandicap(t *testing.T) {
+func TestAustralianDailyHandicap(t *testing.T) {
 	cases := []struct {
-		index  float64
-		rating float64
-		slope  int
-		par    int
-		want   int
+		name     string
+		index    float64
+		rating   float64
+		slope    int
+		par      int
+		category HandicapCategory
+		want     int
 	}{
-		{15.0, 72.0, 113, 72, 15},
-		{15.0, 72.0, 129, 72, 17},
-		{15.0, 69.0, 113, 72, 12}, // Rating-par lowers the Course Handicap by 3.
+		{"men neutral slope", 15.0, 72.0, 113, 72, men, 14},
+		{"men higher slope", 15.0, 72.0, 129, 72, men, 16},
+		{"men rating below par", 15.0, 69.0, 113, 72, men, 11},
+		{"Keilor men example", 24.1, 68.0, 116, 70, men, 21},
+		{"Keilor women example", 24.1, 68.0, 116, 70, women, 22},
 	}
 	for _, c := range cases {
-		if got := courseHandicap(c.index, c.rating, c.slope, c.par); got != c.want {
-			t.Errorf("courseHandicap(%v, %v, %d, %d) = %d, want %d",
-				c.index, c.rating, c.slope, c.par, got, c.want)
+		if got := dailyHandicap(c.index, c.rating, c.slope, c.par, c.category); got != c.want {
+			t.Errorf("%s: dailyHandicap(%v, %v, %d, %d, %s) = %d, want %d",
+				c.name, c.index, c.rating, c.slope, c.par, c.category, got, c.want)
 		}
 	}
 }
@@ -437,7 +441,7 @@ func TestRecalculatePlayerRoundsDoesNotCapBeforeTwentyScores(t *testing.T) {
 }
 
 // TestStartingHandicapAppliesForQualifyingRoundsOnly uses the same
-// synthetic course (Rating equals par, Slope 113, so Course Handicap
+// synthetic course (Rating equals par, Slope 113, so Daily Handicap
 // equals index) to check the nominated-starting-handicap feature precisely.
 //
 // A blown-up round (every hole scored 9, i.e. Par+5) is played 4 times:
@@ -486,33 +490,33 @@ func TestStartingHandicapAppliesForQualifyingRoundsOnly(t *testing.T) {
 
 	t.Run("starting handicap caps rounds 1-3, round 4 reverts to normal", func(t *testing.T) {
 		d := newData()
-		d.SetStartingHandicap("Newbie", 30)
+		d.SetStartingDailyHandicap("Newbie", 30)
 		if err := recalculatePlayerRounds(&d, "Newbie"); err != nil {
 			t.Fatalf("recalculatePlayerRounds failed: %v", err)
 		}
 		for i := 0; i < 3; i++ {
-			if got := d.Rounds[i].CourseHandicapAt; got != 30 {
-				t.Errorf("round %d Course Handicap = %d, want 30 (nominated)", i+1, got)
+			if got := d.Rounds[i].DailyHandicapAt; got != 30 {
+				t.Errorf("round %d Daily Handicap = %d, want 30 (nominated)", i+1, got)
 			}
 			if got := d.Rounds[i].AdjustedGrossAt; got != 138 {
 				t.Errorf("round %d adjusted gross = %d, want 138", i+1, got)
 			}
 		}
 		round3Effective := d.Rounds[2].EffectiveIndexAfter
-		wantRound4CH := courseHandicap(round3Effective, course.Rating, course.Slope, 72)
-		if got := d.Rounds[3].CourseHandicapAt; got != wantRound4CH {
-			t.Errorf("round 4 Course Handicap = %d, want %d (derived from round 3's index, not the nominated 30)",
-				got, wantRound4CH)
+		wantRound4DH := dailyHandicap(round3Effective, course.Rating, course.Slope, 72, men)
+		if got := d.Rounds[3].DailyHandicapAt; got != wantRound4DH {
+			t.Errorf("round 4 Daily Handicap = %d, want %d (derived from round 3's index, not the nominated 30)",
+				got, wantRound4DH)
 		}
 	})
 
 	t.Run("clearing the starting handicap reverts round 1 to Par+5", func(t *testing.T) {
 		d := newData()
-		d.SetStartingHandicap("Newbie", 30)
+		d.SetStartingDailyHandicap("Newbie", 30)
 		if err := recalculatePlayerRounds(&d, "Newbie"); err != nil {
 			t.Fatalf("recalculatePlayerRounds failed: %v", err)
 		}
-		d.ClearStartingHandicap("Newbie")
+		d.ClearStartingDailyHandicap("Newbie")
 		if err := recalculatePlayerRounds(&d, "Newbie"); err != nil {
 			t.Fatalf("recalculatePlayerRounds failed: %v", err)
 		}

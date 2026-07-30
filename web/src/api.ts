@@ -1,4 +1,4 @@
-import type { Course, Player, PlayerDetail, Round } from './types'
+import type { Course, HandicapCategory, Player, PlayerDetail, Round } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -26,11 +26,12 @@ export const api = {
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   players: () => request<Player[]>('/api/players'),
   player: (id: number) => request<PlayerDetail>(`/api/players/${id}`),
-  createPlayer: (body: { name: string; startingCourseHandicap: number | null }) =>
+  createPlayer: (body: { name: string; handicapCategory: HandicapCategory; startingDailyHandicap: number | null }) =>
     request<Player>('/api/players', { method: 'POST', body: JSON.stringify(body) }),
   updatePlayer: (id: number, body: {
     name: string
-    startingCourseHandicap: number | null
+    handicapCategory: HandicapCategory
+    startingDailyHandicap: number | null
     officialHandicapIndex: number | null
     officialHandicapDate: string | null
   }) => request<Player>(`/api/players/${id}`, { method: 'PUT', body: JSON.stringify(body) }),

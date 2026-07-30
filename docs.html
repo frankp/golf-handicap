@@ -127,7 +127,7 @@
 <div class="wrap">
 
   <h1>golf</h1>
-  <p class="subtitle">A command-line tool that tracks golf scores and computes a World Handicap System (WHS) Handicap Index and Course Handicap for one or more players.</p>
+  <p class="subtitle">A command-line tool that tracks golf scores and computes a World Handicap System (WHS) Handicap Index and Australian Daily Handicap for one or more players.</p>
 
   <nav>
     <a href="#quick-start">Quick start</a>
@@ -164,20 +164,25 @@
 
   <p><span class="term">Handicap Index</span> — your overall number, derived from your best recent Score Differentials (see <a href="#index-calc">below</a>).</p>
 
-  <p><span class="term">Course Handicap</span> — your Handicap Index converted to a whole number of strokes for a specific course/tee:</p>
-  <pre><code>Course Handicap = round(Handicap Index × Slope Rating / 113 + Course Rating − par)</code></pre>
+  <p><span class="term">Daily Handicap</span> — your Handicap Index converted to a whole number of strokes for a specific course/tee using Golf Australia's current formula:</p>
+  <pre><code>Daily Handicap = round(
+  (Handicap Index × Slope Rating / 113 + Scratch Rating − par)
+  × 0.93
+  × Consistency Factor
+)</code></pre>
+  <p>The Consistency Factor is <code>0.9986</code> for men/boys and <code>1.0483</code> for women/girls. Each player stores their category; existing and imported players default to men/boys.</p>
 
   <h2 id="ndb">How the Net Double Bogey cap works</h2>
 
   <p>Before a hole score is used for handicap purposes, it's capped at:</p>
   <pre><code>Par + 2 + handicap strokes received on that hole</code></pre>
 
-  <p>A player receives a stroke on a hole once their Course Handicap reaches that hole's Stroke Index, a second once it reaches Stroke Index + 18, and a third once it reaches Stroke Index + 36. So a 40-handicapper receives two strokes everywhere and a third on the four hardest holes.</p>
+  <p>A player receives a stroke on a hole once their Daily Handicap reaches that hole's Stroke Index, a second once it reaches Stroke Index + 18, and a third once it reaches Stroke Index + 36. So a 40-handicapper receives two strokes everywhere and a third on the four hardest holes.</p>
 
   <p>Entering <code>0</code> for a hole (picked up / didn't hole out) is treated as "at least the cap" and scored as the cap.</p>
 
   <div class="callout">
-    <p><strong>Exception:</strong> a Handicap Index is not established until a player has submitted three 18-hole scores. During those first three rounds, WHS's initial-handicap rule caps every hole at Par + 5. A nominated starting Course Handicap can be used instead.</p>
+    <p><strong>Exception:</strong> a Handicap Index is not established until a player has submitted three 18-hole scores. During those first three rounds, WHS's initial-handicap rule caps every hole at Par + 5. A nominated starting Daily Handicap can be used instead.</p>
   </div>
 
   <h2 id="index-calc">How the Handicap Index is calculated</h2>
@@ -220,7 +225,7 @@
 if rise &lt;= 3.0:  effectiveIndex = rawIndex
 else:            effectiveIndex = min(lowIndex + 3.0 + 0.5×(rise − 3.0), lowIndex + 5.0)</code></pre>
 
-  <p>Decreases are never capped — only rises. This effective (capped) index is what actually determines a player's Course Handicap for their <em>next</em> round, and it's what <code>golf index</code> and <code>golf player list</code> report — not the uncapped Rule 5.2a average.</p>
+  <p>Decreases are never capped — only rises. This effective (capped) index is what actually determines a player's Daily Handicap for their <em>next</em> round, and it's what <code>golf index</code> and <code>golf player list</code> report — not the uncapped Rule 5.2a average.</p>
 
   <h2 id="commands">Commands</h2>
   <pre><code>golf course add                     Define a course/tee, prompting for
@@ -237,14 +242,14 @@ golf round delete ID [--yes]        Delete the round ID shown by 'round list',
 
 golf index --player NAME            Show a player's current Handicap Index
 golf handicap --player NAME COURSE TEE
-                                     Show a player's Course Handicap for a course/tee
+                                     Show a player's Daily Handicap for a course/tee
 golf recalculate                    Recompute every round's cached stats in true
                                      date order, for every player (safe to re-run anytime)</code></pre>
 
   <p>Data is stored in <code>./golf.db</code>. Override the location with the <code>GOLF_DB</code> environment variable, e.g. <code>GOLF_DB=~/golf.db golf index --player Frank</code>.</p>
 
   <div class="callout">
-    <p><strong>Rounds can be added in any order.</strong> <code>--date</code> (required) is the real source of truth for chronological order, not the order you happen to run <code>golf round add</code> in. Adding an old round after newer ones are already on file — backfilling — automatically recalculates every later round for that player so their Course Handicap and Score Differential correctly reflect the newly-inserted history. <code>golf round add</code> tells you when this happens (<code>Recalculated &lt;player&gt;'s N later round(s)</code>), and <code>golf round list</code> sorts oldest-first regardless of entry order.</p>
+    <p><strong>Rounds can be added in any order.</strong> <code>--date</code> (required) is the real source of truth for chronological order, not the order you happen to run <code>golf round add</code> in. Adding an old round after newer ones are already on file — backfilling — automatically recalculates every later round for that player so their Daily Handicap and Score Differential correctly reflect the newly-inserted history. <code>golf round add</code> tells you when this happens (<code>Recalculated &lt;player&gt;'s N later round(s)</code>), and <code>golf round list</code> sorts oldest-first regardless of entry order.</p>
   </div>
 
   <div class="callout">

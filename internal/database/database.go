@@ -22,13 +22,14 @@ type Store struct {
 }
 
 type Player struct {
-	ID                     int64    `json:"id"`
-	Name                   string   `json:"name"`
-	StartingCourseHandicap *int     `json:"startingCourseHandicap"`
-	OfficialHandicapIndex  *float64 `json:"officialHandicapIndex"`
-	OfficialHandicapDate   *string  `json:"officialHandicapDate"`
-	GroupHandicapIndex     *float64 `json:"groupHandicapIndex"`
-	RoundCount             int      `json:"roundCount"`
+	ID                    int64                     `json:"id"`
+	Name                  string                    `json:"name"`
+	HandicapCategory      handicap.HandicapCategory `json:"handicapCategory"`
+	StartingDailyHandicap *int                      `json:"startingDailyHandicap"`
+	OfficialHandicapIndex *float64                  `json:"officialHandicapIndex"`
+	OfficialHandicapDate  *string                   `json:"officialHandicapDate"`
+	GroupHandicapIndex    *float64                  `json:"groupHandicapIndex"`
+	RoundCount            int                       `json:"roundCount"`
 }
 
 type Tee struct {
@@ -60,7 +61,7 @@ type RoundPlayer struct {
 	HandicapUsed          *float64 `json:"handicapUsed"`
 	NetScore              float64  `json:"netScore"`
 	NetScores             [18]int  `json:"netScores"`
-	CourseHandicap        int      `json:"courseHandicap"`
+	DailyHandicap         int      `json:"dailyHandicap"`
 	AdjustedGross         int      `json:"adjustedGross"`
 	ScoreDifferential     float64  `json:"scoreDifferential"`
 	HandicapIndexAfter    *float64 `json:"handicapIndexAfter"`
@@ -99,6 +100,7 @@ CREATE TABLE IF NOT EXISTS players (
 	id INTEGER PRIMARY KEY,
 	name TEXT NOT NULL COLLATE NOCASE UNIQUE,
 	starting_course_handicap INTEGER,
+	handicap_category TEXT NOT NULL DEFAULT 'men',
 	official_handicap_index REAL,
 	official_handicap_date TEXT,
 	created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -135,7 +137,7 @@ CREATE TABLE IF NOT EXISTS round_players (
 	player_id INTEGER NOT NULL REFERENCES players(id),
 	tee_id INTEGER NOT NULL REFERENCES tees(id),
 	handicap_used REAL,
-	course_handicap INTEGER NOT NULL DEFAULT 0,
+	daily_handicap INTEGER NOT NULL DEFAULT 0,
 	adjusted_gross INTEGER NOT NULL DEFAULT 0,
 	score_differential REAL NOT NULL DEFAULT 0,
 	handicap_index_after REAL,
@@ -153,7 +155,14 @@ CREATE TABLE IF NOT EXISTS hole_scores (
 
 CREATE INDEX IF NOT EXISTS idx_rounds_played_on ON rounds(played_on DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_round_players_player ON round_players(player_id);
+
+CREATE TABLE IF NOT EXISTS app_metadata (
+	key TEXT PRIMARY KEY,
+	value TEXT NOT NULL
+);
 `
+
+const handicapFormulaVersion = "ga-daily-2025"
 
 func Open(path string) (*Store, error) {
 	if dir := filepath.Dir(path); dir != "." {
@@ -174,7 +183,37 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("migrate database: %w", err)
 	}
-	return &Store{db: db}, nil
+	if err := ensureColumn(db, "players", "handicap_category", "TEXT NOT NULL DEFAULT 'men'"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate database: %w", err)
+	}
+	if err := ensureColumn(db, "round_players", "daily_handicap", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate database: %w", err)
+	}
+	store := &Store{db: db}
+	if err := store.migrateHandicapFormula(context.Background()); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate handicap formula: %w", err)
+	}
+	return store, nil
+}
+
+func (s *Store) migrateHandicapFormula(ctx context.Context) error {
+	var version string
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM app_metadata WHERE key = 'handicap_formula_version'`).Scan(&version)
+	if err == nil && version == handicapFormulaVersion {
+		return nil
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err := s.RecalculateAll(ctx); err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO app_metadata(key, value) VALUES('handicap_formula_version', ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value`, handicapFormulaVersion)
+	return err
 }
 
 func (s *Store) Close() error {
@@ -218,7 +257,7 @@ func (s *Store) Empty(ctx context.Context) (bool, error) {
 
 func (s *Store) Players(ctx context.Context) ([]Player, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.starting_course_handicap, p.official_handicap_index,
+		SELECT p.id, p.name, p.handicap_category, p.starting_course_handicap, p.official_handicap_index,
 		       p.official_handicap_date, COUNT(rp.id),
 		       (SELECT rp2.handicap_index_after
 		          FROM round_players rp2 JOIN rounds r2 ON r2.id = rp2.round_id
@@ -238,10 +277,10 @@ func (s *Store) Players(ctx context.Context) ([]Player, error) {
 		var starting sql.NullInt64
 		var official, group sql.NullFloat64
 		var officialDate sql.NullString
-		if err := rows.Scan(&p.ID, &p.Name, &starting, &official, &officialDate, &p.RoundCount, &group); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.HandicapCategory, &starting, &official, &officialDate, &p.RoundCount, &group); err != nil {
 			return nil, err
 		}
-		p.StartingCourseHandicap = intPtr(starting)
+		p.StartingDailyHandicap = intPtr(starting)
 		p.OfficialHandicapIndex = floatPtr(official)
 		p.OfficialHandicapDate = stringPtr(officialDate)
 		p.GroupHandicapIndex = floatPtr(group)
@@ -269,13 +308,21 @@ func (s *Store) Player(ctx context.Context, id int64) (Player, []Round, error) {
 	return *found, rounds, err
 }
 
-func (s *Store) CreatePlayer(ctx context.Context, name string, starting *int) (Player, error) {
+func (s *Store) CreatePlayer(ctx context.Context, name string, category *handicap.HandicapCategory, starting *int) (Player, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Player{}, fmt.Errorf("player name is required")
 	}
+	normalizedCategory := handicap.Men
+	if category != nil {
+		normalizedCategory = *category
+	}
+	if !normalizedCategory.Valid() {
+		return Player{}, fmt.Errorf("handicap category must be men or women")
+	}
 	result, err := s.db.ExecContext(ctx,
-		`INSERT INTO players(name, starting_course_handicap) VALUES(?, ?)`, name, starting)
+		`INSERT INTO players(name, handicap_category, starting_course_handicap) VALUES(?, ?, ?)`,
+		name, normalizedCategory, starting)
 	if err != nil {
 		return Player{}, friendlyConstraint(err, "a player with that name already exists")
 	}
@@ -284,13 +331,16 @@ func (s *Store) CreatePlayer(ctx context.Context, name string, starting *int) (P
 	return player, err
 }
 
-func (s *Store) UpdatePlayer(ctx context.Context, id int64, name string, starting *int, official *float64, officialDate *string) (Player, error) {
+func (s *Store) UpdatePlayer(ctx context.Context, id int64, name string, category *handicap.HandicapCategory, starting *int, official *float64, officialDate *string) (Player, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Player{}, fmt.Errorf("player name is required")
 	}
 	if official != nil && (*official < -10 || *official > 54) {
 		return Player{}, fmt.Errorf("official Handicap Index must be between -10 and 54")
+	}
+	if category != nil && !category.Valid() {
+		return Player{}, fmt.Errorf("handicap category must be men or women")
 	}
 	if officialDate != nil {
 		if _, err := time.Parse("2006-01-02", *officialDate); err != nil {
@@ -303,8 +353,9 @@ func (s *Store) UpdatePlayer(ctx context.Context, id int64, name string, startin
 	}
 	defer tx.Rollback()
 	result, err := tx.ExecContext(ctx, `UPDATE players
-		SET name = ?, starting_course_handicap = ?, official_handicap_index = ?, official_handicap_date = ?
-		WHERE id = ?`, name, starting, official, officialDate, id)
+		SET name = ?, handicap_category = COALESCE(?, handicap_category), starting_course_handicap = ?,
+		    official_handicap_index = ?, official_handicap_date = ?
+		WHERE id = ?`, name, category, starting, official, officialDate, id)
 	if err != nil {
 		return Player{}, friendlyConstraint(err, "a player with that name already exists")
 	}
@@ -564,7 +615,7 @@ func (s *Store) rounds(ctx context.Context, playerID *int64, limit int) ([]Round
 
 func (s *Store) loadRounds(ctx context.Context, clause string, args ...any) ([]Round, error) {
 	query := `SELECT r.id, r.played_on, r.course_id, c.name, r.notes,
-		rp.id, p.id, p.name, t.id, t.name, rp.handicap_used, rp.course_handicap, rp.adjusted_gross,
+		rp.id, p.id, p.name, t.id, t.name, rp.handicap_used, rp.daily_handicap, rp.adjusted_gross,
 		rp.score_differential, rp.handicap_index_after, rp.starting_handicap_used,
 		rp.initial_par_five_cap_used, t.stroke_index_json
 		FROM rounds r
@@ -609,8 +660,8 @@ func (s *Store) loadRounds(ctx context.Context, clause string, args ...any) ([]R
 		if rpID.Valid {
 			rp := RoundPlayer{ID: rpID.Int64, PlayerID: playerID.Int64, PlayerName: playerName.String,
 				TeeID: teeID.Int64, TeeName: teeName.String, HandicapUsed: floatPtr(handicapUsed),
-				CourseHandicap: int(ch.Int64),
-				AdjustedGross:  int(adjusted.Int64), ScoreDifferential: differential.Float64,
+				DailyHandicap: int(ch.Int64),
+				AdjustedGross: int(adjusted.Int64), ScoreDifferential: differential.Float64,
 				HandicapIndexAfter: floatPtr(index), StartingHandicapUsed: startingUsed.Bool,
 				InitialParFiveCapUsed: initialUsed.Bool}
 			current.Participants = append(current.Participants, rp)
@@ -643,7 +694,7 @@ func (s *Store) loadRounds(ctx context.Context, clause string, args ...any) ([]R
 			rp.Gross += strokes
 		}
 		scoreRows.Close()
-		netHandicap := float64(rp.CourseHandicap)
+		netHandicap := float64(rp.DailyHandicap)
 		if rp.HandicapUsed != nil {
 			netHandicap = *rp.HandicapUsed
 		}
@@ -921,9 +972,10 @@ func (s *Store) RecalculateAll(ctx context.Context) error {
 
 func (s *Store) recalculatePlayerTx(ctx context.Context, tx *sql.Tx, playerID int64) error {
 	var playerName string
+	var category handicap.HandicapCategory
 	var starting sql.NullInt64
-	if err := tx.QueryRowContext(ctx, `SELECT name, starting_course_handicap FROM players WHERE id = ?`, playerID).
-		Scan(&playerName, &starting); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT name, handicap_category, starting_course_handicap FROM players WHERE id = ?`, playerID).
+		Scan(&playerName, &category, &starting); err != nil {
 		return err
 	}
 	rows, err := tx.QueryContext(ctx, `
@@ -965,7 +1017,10 @@ func (s *Store) recalculatePlayerTx(ctx context.Context, tx *sql.Tx, playerID in
 		records = append(records, rec)
 	}
 	rows.Close()
-	data := handicap.Data{StartingHandicaps: map[string]int{}}
+	data := handicap.Data{
+		StartingHandicaps:  map[string]int{},
+		HandicapCategories: map[string]handicap.HandicapCategory{playerName: category},
+	}
 	if starting.Valid {
 		data.StartingHandicaps[playerName] = int(starting.Int64)
 	}
@@ -1005,9 +1060,9 @@ func (s *Store) recalculatePlayerTx(ctx context.Context, tx *sql.Tx, playerID in
 			index = calculated.EffectiveIndexAfter
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE round_players
-			SET course_handicap = ?, adjusted_gross = ?, score_differential = ?, handicap_index_after = ?,
+			SET daily_handicap = ?, adjusted_gross = ?, score_differential = ?, handicap_index_after = ?,
 			    starting_handicap_used = ?, initial_par_five_cap_used = ?
-			WHERE id = ?`, calculated.CourseHandicapAt, calculated.AdjustedGrossAt, calculated.ScoreDifferential,
+			WHERE id = ?`, calculated.DailyHandicapAt, calculated.AdjustedGrossAt, calculated.ScoreDifferential,
 			index, starting.Valid && i < handicap.QualifyingRounds, !starting.Valid && i < handicap.QualifyingRounds,
 			records[i].roundPlayerID)
 		if err != nil {

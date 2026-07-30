@@ -85,8 +85,8 @@ func TestCLIEndToEnd(t *testing.T) {
 	}
 
 	handicapOut := run(t, bin, dataFile, "", "handicap", "--player", "Frank", "Test Golf Club", "White")
-	if !strings.Contains(handicapOut, "Course Handicap 16") {
-		t.Errorf("handicap output = %q, want Course Handicap 16", handicapOut)
+	if !strings.Contains(handicapOut, "Daily Handicap 15") {
+		t.Errorf("handicap output = %q, want Daily Handicap 15", handicapOut)
 	}
 }
 
@@ -185,14 +185,14 @@ func TestCLIRoundDelete(t *testing.T) {
 // The target round is played at par on every hole except hole 15 (par 4, SI 10),
 // which is scored 7 - one over the "no stroke" Net Double Bogey cap of 6,
 // but exactly at the "one stroke" cap of 7. So whether that hole gets
-// capped depends entirely on whether Round 3's Course Handicap reaches
+// capped depends entirely on whether Round 3's Daily Handicap reaches
 // SI 10:
 //
 //   - With the mistaken round present, Frank's index going into the target
-//     is driven by its very low differential -> Course Handicap 1,
+//     is driven by its very low differential -> Daily Handicap 1,
 //     no stroke on hole 15 -> capped to 6 -> adjusted gross 75.
 //   - After it is deleted, Frank's index comes from three qualifying
-//     rounds -> Course Handicap 16, stroke received on
+//     rounds -> Daily Handicap 15, stroke received on
 //     hole 15 -> 7 counts uncapped -> adjusted gross 76.
 func TestCLIRoundDeleteRecalculatesLaterRounds(t *testing.T) {
 	bin := buildCLI(t)
@@ -217,14 +217,14 @@ func TestCLIRoundDeleteRecalculatesLaterRounds(t *testing.T) {
 	before := run(t, bin, dataFile, "", "round", "list", "--player", "Frank")
 	beforeLine := lineContaining(t, before, "2026-08-01")
 	assertContainsAll(t, beforeLine,
-		fmt.Sprintf("gross %3d", 76), fmt.Sprintf("adj %3d", 75), fmt.Sprintf("ch %2d", 1))
+		fmt.Sprintf("gross %3d", 76), fmt.Sprintf("adj %3d", 75), fmt.Sprintf("dh %2d", 1))
 
 	run(t, bin, dataFile, "y\n", "round", "delete", "4") // delete the mistaken round
 
 	after := run(t, bin, dataFile, "", "round", "list", "--player", "Frank")
 	afterLine := lineContaining(t, after, "2026-08-01")
 	assertContainsAll(t, afterLine,
-		fmt.Sprintf("gross %3d", 76), fmt.Sprintf("adj %3d", 76), fmt.Sprintf("ch %2d", 16))
+		fmt.Sprintf("gross %3d", 76), fmt.Sprintf("adj %3d", 76), fmt.Sprintf("dh %2d", 15))
 }
 
 func lineContaining(t *testing.T, output, substr string) string {
@@ -250,7 +250,7 @@ func assertContainsAll(t *testing.T, line string, substrs ...string) {
 // TestCLIRoundAddOutOfOrderRecalculatesLaterRounds proves that rounds no
 // longer need to be entered in chronological order: adding an old round
 // after newer ones are already on file must correctly recalculate those
-// newer rounds' Course Handicap and Adjusted Gross Score, exactly as if
+// newer rounds' Daily Handicap and Adjusted Gross Score, exactly as if
 // it had been entered in date order to begin with.
 //
 // This mirrors TestCLIRoundDeleteRecalculatesLaterRounds in reverse: there
@@ -269,7 +269,7 @@ func TestCLIRoundAddOutOfOrderRecalculatesLaterRounds(t *testing.T) {
 	}
 
 	// Round C, dated latest, is played after three qualifying rounds: prior
-	// index is 15.2 -> Course Handicap 16 -> hole 15
+	// index is 15.2 -> Daily Handicap 15 -> hole 15
 	// (par 4, SI 10) scored 7 is within the one-stroke cap of 7, uncapped.
 	roundC := "4\n5\n4\n3\n4\n5\n4\n3\n4\n5\n4\n4\n3\n5\n7\n4\n3\n5\n"
 	run(t, bin, dataFile, roundC,
@@ -277,13 +277,13 @@ func TestCLIRoundAddOutOfOrderRecalculatesLaterRounds(t *testing.T) {
 
 	before := run(t, bin, dataFile, "", "round", "list", "--player", "Frank")
 	beforeLine := lineContaining(t, before, "2026-08-01")
-	assertContainsAll(t, beforeLine, fmt.Sprintf("adj %3d", 76), fmt.Sprintf("ch %2d", 16))
+	assertContainsAll(t, beforeLine, fmt.Sprintf("adj %3d", 76), fmt.Sprintf("dh %2d", 15))
 
 	// Now backfill an even earlier round, dated before Round A, with a
 	// very low differential (~3.1). Once it's on file, Round C's
 	// chronological history contains the backfill plus three qualifying
 	// rounds before Round C, so its prior index uses the low backfill with
-	// a -1.0 adjustment -> Course Handicap 1 -> hole 15's cap drops
+	// a -1.0 adjustment -> Daily Handicap 1 -> hole 15's cap drops
 	// to 6, capping the 7 down to 6.
 	backfill := "4\n5\n4\n4\n4\n5\n4\n3\n5\n5\n4\n4\n3\n5\n4\n4\n3\n5\n" // gross 75, diff ~3.1
 	addOut := run(t, bin, dataFile, backfill,
@@ -295,7 +295,7 @@ func TestCLIRoundAddOutOfOrderRecalculatesLaterRounds(t *testing.T) {
 
 	after := run(t, bin, dataFile, "", "round", "list", "--player", "Frank")
 	afterLine := lineContaining(t, after, "2026-08-01")
-	assertContainsAll(t, afterLine, fmt.Sprintf("adj %3d", 75), fmt.Sprintf("ch %2d", 1))
+	assertContainsAll(t, afterLine, fmt.Sprintf("adj %3d", 75), fmt.Sprintf("dh %2d", 1))
 }
 
 func TestCLIRecalculateUsesSQLiteData(t *testing.T) {
@@ -351,19 +351,19 @@ func TestCLIStartingHandicap(t *testing.T) {
 
 	before := run(t, bin, dataFile, "", "round", "list", "--player", "Newbie")
 	line := lineContaining(t, before, "2026-07-01")
-	assertContainsAll(t, line, fmt.Sprintf("ch %2d", 0), "adj 158")
+	assertContainsAll(t, line, fmt.Sprintf("dh %2d", 0), "adj 158")
 
 	setOut := run(t, bin, dataFile, "", "player", "set-starting-handicap", "--player", "Newbie", "--handicap", "30")
-	if !strings.Contains(setOut, "starting Course Handicap set to 30") {
+	if !strings.Contains(setOut, "starting Daily Handicap set to 30") {
 		t.Errorf("expected a confirmation message, got:\n%s", setOut)
 	}
 
-	// With a nominated Course Handicap of 30, Net Double Bogey capping
+	// With a nominated Daily Handicap of 30, Net Double Bogey capping
 	// applies per hole based on its Stroke Index, giving a total of 139
 	// (computed independently against this course's actual par/SI layout).
 	afterSet := run(t, bin, dataFile, "", "round", "list", "--player", "Newbie")
 	line = lineContaining(t, afterSet, "2026-07-01")
-	assertContainsAll(t, line, fmt.Sprintf("ch %2d", 30), "adj 139")
+	assertContainsAll(t, line, fmt.Sprintf("dh %2d", 30), "adj 139")
 
 	list := run(t, bin, dataFile, "", "player", "list")
 	if !strings.Contains(list, "Newbie") || !strings.Contains(list, "30") {
@@ -371,11 +371,11 @@ func TestCLIStartingHandicap(t *testing.T) {
 	}
 
 	clearOut := run(t, bin, dataFile, "", "player", "clear-starting-handicap", "--player", "Newbie")
-	if !strings.Contains(clearOut, "starting Course Handicap cleared") {
+	if !strings.Contains(clearOut, "starting Daily Handicap cleared") {
 		t.Errorf("expected a confirmation message, got:\n%s", clearOut)
 	}
 
 	afterClear := run(t, bin, dataFile, "", "round", "list", "--player", "Newbie")
 	line = lineContaining(t, afterClear, "2026-07-01")
-	assertContainsAll(t, line, fmt.Sprintf("ch %2d", 0), "adj 158") // back to the Par+5 rule
+	assertContainsAll(t, line, fmt.Sprintf("dh %2d", 0), "adj 158") // back to the Par+5 rule
 }

@@ -44,7 +44,7 @@ onMounted(async () => {
         <div class="section-heading"><h2>Scoring record</h2></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Date</th><th>Course</th><th>Tee</th><th>Gross</th><th>H'cap used</th><th>Net</th><th>Adjusted</th><th>Differential</th><th>Index after</th></tr></thead>
+            <thead><tr><th>Date</th><th>Course</th><th>Tee</th><th>Gross</th><th>Daily H'cap</th><th>H'cap used</th><th>Net</th><th>Adjusted</th><th>Differential</th><th>Index after</th></tr></thead>
             <tbody>
               <tr v-for="round in detail.rounds" :key="round.id">
                 <td>
@@ -61,6 +61,7 @@ onMounted(async () => {
                 <td>{{ round.courseName }}</td>
                 <td>{{ round.participants.find((p) => p.playerId === detail!.player.id)?.teeName }}</td>
                 <td>{{ round.participants.find((p) => p.playerId === detail!.player.id)?.gross }}</td>
+                <td>{{ round.participants.find((p) => p.playerId === detail!.player.id)?.dailyHandicap }}</td>
                 <td>{{ formatDecimal(round.participants.find((p) => p.playerId === detail!.player.id)?.handicapUsed) }}</td>
                 <td>{{ formatWhole(round.participants.find((p) => p.playerId === detail!.player.id)?.netScore) }}</td>
                 <td>{{ round.participants.find((p) => p.playerId === detail!.player.id)?.adjustedGross }}</td>

@@ -71,7 +71,7 @@ func main() {
 			valueCopy := value
 			starting = &valueCopy
 		}
-		player, err := store.CreatePlayer(ctx, name, starting)
+		player, err := store.CreatePlayer(ctx, name, nil, starting)
 		if err != nil {
 			log.Fatalf("import player %s: %v", name, err)
 		}

@@ -67,13 +67,14 @@ func (a *API) player(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) createPlayer(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Name                   string `json:"name"`
-		StartingCourseHandicap *int   `json:"startingCourseHandicap"`
+		Name                  string                     `json:"name"`
+		HandicapCategory      *handicap.HandicapCategory `json:"handicapCategory"`
+		StartingDailyHandicap *int                       `json:"startingDailyHandicap"`
 	}
 	if !decode(w, r, &input) {
 		return
 	}
-	player, err := a.store.CreatePlayer(r.Context(), input.Name, input.StartingCourseHandicap)
+	player, err := a.store.CreatePlayer(r.Context(), input.Name, input.HandicapCategory, input.StartingDailyHandicap)
 	if err != nil {
 		respond(w, nil, err)
 		return
@@ -88,15 +89,16 @@ func (a *API) updatePlayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		Name                   string   `json:"name"`
-		StartingCourseHandicap *int     `json:"startingCourseHandicap"`
-		OfficialHandicapIndex  *float64 `json:"officialHandicapIndex"`
-		OfficialHandicapDate   *string  `json:"officialHandicapDate"`
+		Name                  string                     `json:"name"`
+		HandicapCategory      *handicap.HandicapCategory `json:"handicapCategory"`
+		StartingDailyHandicap *int                       `json:"startingDailyHandicap"`
+		OfficialHandicapIndex *float64                   `json:"officialHandicapIndex"`
+		OfficialHandicapDate  *string                    `json:"officialHandicapDate"`
 	}
 	if !decode(w, r, &input) {
 		return
 	}
-	player, err := a.store.UpdatePlayer(r.Context(), id, input.Name, input.StartingCourseHandicap,
+	player, err := a.store.UpdatePlayer(r.Context(), id, input.Name, input.HandicapCategory, input.StartingDailyHandicap,
 		input.OfficialHandicapIndex, input.OfficialHandicapDate)
 	respond(w, player, err)
 }

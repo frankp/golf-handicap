@@ -2,7 +2,7 @@
 
 A small command-line tool that tracks golf scores and computes a
 [World Handicap System (WHS)](https://www.usga.org/handicapping.html)
-Handicap Index and Course Handicap for one or more players.
+Handicap Index and Australian Daily Handicap for one or more players.
 
 The primary interface is now a private web application backed by SQLite.
 The CLI uses the same SQLite database. Legacy JSON storage is supported
@@ -185,12 +185,21 @@ Score Differential = (113 / Slope Rating) × (Adjusted Gross Score − Course Ra
 **Handicap Index** — your overall number, derived from your best recent
 Score Differentials (see [How the Handicap Index is calculated](#how-the-handicap-index-is-calculated)).
 
-**Course Handicap** — your Handicap Index converted to a whole number of
-strokes for a specific course/tee:
+**Daily Handicap** — your Handicap Index converted to a whole number of
+strokes for a specific course/tee using Golf Australia's current formula:
 
 ```
-Course Handicap = round(Handicap Index × Slope Rating / 113 + Course Rating − par)
+Daily Handicap = round(
+  (Handicap Index × Slope Rating / 113 + Scratch Rating − par)
+  × 0.93
+  × Consistency Factor
+)
 ```
+
+The Consistency Factor is `0.9986` for men/boys and `1.0483` for
+women/girls. Each player stores their category; existing and imported
+players default to men/boys. See [Golf Australia's handicapping
+guide](https://golf.com.au/resource-detail/golf-australias-national-handicapping-service).
 
 ## How the Net Double Bogey cap works
 
@@ -200,7 +209,7 @@ Before a hole score is used for handicap purposes, it's capped at:
 Par + 2 + handicap strokes received on that hole
 ```
 
-A player receives a stroke on a hole once their Course Handicap reaches
+A player receives a stroke on a hole once their Daily Handicap reaches
 that hole's Stroke Index, a second once it reaches `Stroke Index + 18`,
 and a third once it reaches `Stroke Index + 36`. So a 40-handicapper
 receives two strokes everywhere and a third on the four hardest holes.
@@ -211,7 +220,7 @@ least the cap" and scored as the cap.
 **Exception:** a Handicap Index is not established until a player has
 submitted three 18-hole scores. During those first three rounds, WHS's
 initial-handicap rule caps every hole at `Par + 5`. A nominated starting
-Course Handicap can be used instead.
+Daily Handicap can be used instead.
 
 ## How the Handicap Index is calculated
 
@@ -260,7 +269,7 @@ else:            effectiveIndex = min(lowIndex + 3.0 + 0.5×(rise − 3.0), lowI
 ```
 
 Decreases are never capped — only rises. This effective (capped) index is
-what actually determines a player's Course Handicap for their *next*
+what actually determines a player's Daily Handicap for their *next*
 round, and it's what `golf index` and `golf player list` report — not the
 uncapped Rule 5.2a average.
 
@@ -281,7 +290,7 @@ golf round delete ID [--yes]        Delete the round ID shown by 'round list',
 
 golf index --player NAME            Show a player's current Handicap Index
 golf handicap --player NAME COURSE TEE
-                                     Show a player's Course Handicap for a course/tee
+                                     Show a player's Daily Handicap for a course/tee
 golf recalculate                    Recompute every round's cached stats in true
                                      date order, for every player (safe to re-run anytime)
 ```
@@ -293,14 +302,14 @@ with `GOLF_DB`, e.g. `GOLF_DB=~/golf.db golf index --player Frank`.
 source of truth for chronological order, not the order you happen to run
 `golf round add` in. Adding an old round after newer ones are already on
 file — backfilling — automatically recalculates every later round for
-that player so their Course Handicap and Score Differential correctly
+that player so their Daily Handicap and Score Differential correctly
 reflect the newly-inserted history. `golf round add` tells you when this
 happens (`Recalculated <player>'s N later round(s)`), and `golf round
 list` sorts oldest-first regardless of entry order.
 
 **Deleting a round** (`golf round delete ID`) removes that round and then
 replays the affected players' remaining rounds in date order, recomputing
-each Course Handicap, Adjusted Gross Score, and Score Differential from
+each Daily Handicap, Adjusted Gross Score, and Score Differential from
 the raw hole scores. A web-entered group round contains multiple players;
 deleting its ID removes the complete group round.
 

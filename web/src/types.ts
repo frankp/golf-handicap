@@ -1,7 +1,10 @@
+export type HandicapCategory = 'men' | 'women'
+
 export interface Player {
   id: number
   name: string
-  startingCourseHandicap: number | null
+  handicapCategory: HandicapCategory
+  startingDailyHandicap: number | null
   officialHandicapIndex: number | null
   officialHandicapDate: string | null
   groupHandicapIndex: number | null
@@ -37,7 +40,7 @@ export interface RoundPlayer {
   handicapUsed: number | null
   netScore: number
   netScores: number[]
-  courseHandicap: number
+  dailyHandicap: number
   adjustedGross: number
   scoreDifferential: number
   handicapIndexAfter: number | null

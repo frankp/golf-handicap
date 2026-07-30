@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { ArrowRight, Pencil, Plus, Trash2 } from '@lucide/vue'
 import { api } from '@/api'
-import type { Player } from '@/types'
+import type { HandicapCategory, Player } from '@/types'
 import AppModal from '@/components/AppModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { authState } from '@/auth'
@@ -13,7 +13,9 @@ const error = ref('')
 const showAdd = ref(false)
 const editing = ref<Player | null>(null)
 const saving = ref(false)
-const form = ref({ name: '', starting: '', official: '', officialDate: '' })
+const form = ref<{ name: string; category: HandicapCategory; starting: string; official: string; officialDate: string }>({
+  name: '', category: 'men', starting: '', official: '', officialDate: '',
+})
 
 onMounted(load)
 
@@ -30,7 +32,7 @@ async function load() {
 }
 
 function openAdd() {
-  form.value = { name: '', starting: '', official: '', officialDate: '' }
+  form.value = { name: '', category: 'men', starting: '', official: '', officialDate: '' }
   showAdd.value = true
 }
 
@@ -38,7 +40,8 @@ function openEdit(player: Player) {
   editing.value = player
   form.value = {
     name: player.name,
-    starting: player.startingCourseHandicap?.toString() ?? '',
+    category: player.handicapCategory,
+    starting: player.startingDailyHandicap?.toString() ?? '',
     official: player.officialHandicapIndex?.toString() ?? '',
     officialDate: player.officialHandicapDate ?? '',
   }
@@ -49,7 +52,8 @@ async function saveAdd() {
   try {
     await api.createPlayer({
       name: form.value.name,
-      startingCourseHandicap: form.value.starting === '' ? null : Number(form.value.starting),
+      handicapCategory: form.value.category,
+      startingDailyHandicap: form.value.starting === '' ? null : Number(form.value.starting),
     })
     showAdd.value = false
     await load()
@@ -66,7 +70,8 @@ async function saveEdit() {
   try {
     await api.updatePlayer(editing.value.id, {
       name: form.value.name,
-      startingCourseHandicap: form.value.starting === '' ? null : Number(form.value.starting),
+      handicapCategory: form.value.category,
+      startingDailyHandicap: form.value.starting === '' ? null : Number(form.value.starting),
       officialHandicapIndex: form.value.official === '' ? null : Number(form.value.official),
       officialHandicapDate: form.value.officialDate || null,
     })
@@ -103,13 +108,14 @@ async function remove(player: Player) {
     </EmptyState>
     <div v-else class="table-wrap">
       <table>
-        <thead><tr><th>Player</th><th>Group HI</th><th>Official HI</th><th>Starting CH</th><th>Rounds</th><th></th></tr></thead>
+        <thead><tr><th>Player</th><th>Category</th><th>Group HI</th><th>Official HI</th><th>Starting DH</th><th>Rounds</th><th></th></tr></thead>
         <tbody>
           <tr v-for="player in players" :key="player.id">
             <td><RouterLink class="primary-link" :to="`/players/${player.id}`">{{ player.name }}</RouterLink></td>
+            <td>{{ player.handicapCategory === 'women' ? 'Women/Girls' : 'Men/Boys' }}</td>
             <td><strong>{{ player.groupHandicapIndex?.toFixed(1) ?? 'Pending' }}</strong></td>
             <td>{{ player.officialHandicapIndex?.toFixed(1) ?? '—' }}</td>
-            <td>{{ player.startingCourseHandicap ?? '—' }}</td>
+            <td>{{ player.startingDailyHandicap ?? '—' }}</td>
             <td>{{ player.roundCount }}</td>
             <td class="button-cluster">
               <button v-if="authState.authenticated" class="icon-button" title="Edit player" @click="openEdit(player)"><Pencil :size="17" /></button>
@@ -124,7 +130,8 @@ async function remove(player: Player) {
     <AppModal v-if="showAdd" title="Add player" @close="showAdd = false">
       <form class="form-stack" @submit.prevent="saveAdd">
         <label>Player name<input v-model.trim="form.name" required autofocus /></label>
-        <label>Starting Course Handicap <span class="optional">Optional</span><input v-model="form.starting" type="number" min="0" max="54" /></label>
+        <label>Handicap category<select v-model="form.category"><option value="men">Men/Boys</option><option value="women">Women/Girls</option></select></label>
+        <label>Starting Daily Handicap <span class="optional">Optional</span><input v-model="form.starting" type="number" min="0" max="99" /></label>
         <div class="form-actions"><button type="button" class="button ghost" @click="showAdd = false">Cancel</button><button class="button" :disabled="saving">Add player</button></div>
       </form>
     </AppModal>
@@ -132,7 +139,8 @@ async function remove(player: Player) {
     <AppModal v-if="editing" title="Edit player" @close="editing = null">
       <form class="form-stack" @submit.prevent="saveEdit">
         <label>Player name<input v-model.trim="form.name" required /></label>
-        <label>Starting Course Handicap <span class="optional">First three rounds</span><input v-model="form.starting" type="number" min="0" max="54" /></label>
+        <label>Handicap category<select v-model="form.category"><option value="men">Men/Boys</option><option value="women">Women/Girls</option></select></label>
+        <label>Starting Daily Handicap <span class="optional">First three rounds</span><input v-model="form.starting" type="number" min="0" max="99" /></label>
         <div class="field-pair">
           <label>Official Handicap Index <span class="optional">Reference only</span><input v-model="form.official" type="number" min="-10" max="54" step="0.1" /></label>
           <label>Official index date<input v-model="form.officialDate" type="date" :required="form.official !== ''" /></label>

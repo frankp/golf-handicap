@@ -9,6 +9,24 @@ import (
 
 const QualifyingRounds = 3
 
+type HandicapCategory string
+
+const (
+	Men   HandicapCategory = "men"
+	Women HandicapCategory = "women"
+)
+
+func (c HandicapCategory) Valid() bool {
+	return c == Men || c == Women
+}
+
+func (c HandicapCategory) ConsistencyFactor() float64 {
+	if c == Women {
+		return 1.0483
+	}
+	return 0.9986
+}
+
 type Course struct {
 	Name        string  `json:"name"`
 	Tee         string  `json:"tee"`
@@ -56,32 +74,41 @@ type Round struct {
 	CourseName          string  `json:"courseName"`
 	Tee                 string  `json:"tee"`
 	Scores              [18]int `json:"scores"`
-	CourseHandicapAt    int     `json:"courseHandicapAt"`
+	DailyHandicapAt     int     `json:"dailyHandicapAt"`
 	AdjustedGrossAt     int     `json:"adjustedGrossAt"`
 	ScoreDifferential   float64 `json:"scoreDifferential"`
 	EffectiveIndexAfter float64 `json:"effectiveIndexAfter"`
 }
 
 type Data struct {
-	Courses           []Course       `json:"courses"`
-	Rounds            []Round        `json:"rounds"`
-	StartingHandicaps map[string]int `json:"startingHandicaps,omitempty"`
+	Courses            []Course                    `json:"courses"`
+	Rounds             []Round                     `json:"rounds"`
+	StartingHandicaps  map[string]int              `json:"startingHandicaps,omitempty"`
+	HandicapCategories map[string]HandicapCategory `json:"handicapCategories,omitempty"`
 }
 
-func (d *Data) StartingHandicap(player string) (int, bool) {
+func (d *Data) StartingDailyHandicap(player string) (int, bool) {
 	ch, ok := d.StartingHandicaps[player]
 	return ch, ok
 }
 
-func (d *Data) SetStartingHandicap(player string, ch int) {
+func (d *Data) SetStartingDailyHandicap(player string, ch int) {
 	if d.StartingHandicaps == nil {
 		d.StartingHandicaps = map[string]int{}
 	}
 	d.StartingHandicaps[player] = ch
 }
 
-func (d *Data) ClearStartingHandicap(player string) {
+func (d *Data) ClearStartingDailyHandicap(player string) {
 	delete(d.StartingHandicaps, player)
+}
+
+func (d *Data) HandicapCategory(player string) HandicapCategory {
+	category := d.HandicapCategories[player]
+	if !category.Valid() {
+		return Men
+	}
+	return category
 }
 
 func (d *Data) FindCourse(name, tee string) (Course, bool) {
@@ -93,15 +120,15 @@ func (d *Data) FindCourse(name, tee string) (Course, bool) {
 	return Course{}, false
 }
 
-func NetDoubleBogeyCap(par, courseHandicap, strokeIndex int) int {
-	if courseHandicap < 0 {
-		courseHandicap = 0
+func NetDoubleBogeyCap(par, dailyHandicap, strokeIndex int) int {
+	if dailyHandicap < 0 {
+		dailyHandicap = 0
 	}
-	if courseHandicap > 54 {
-		courseHandicap = 54
+	if dailyHandicap > 54 {
+		dailyHandicap = 54
 	}
-	strokes := courseHandicap / 18
-	if courseHandicap%18 >= strokeIndex {
+	strokes := dailyHandicap / 18
+	if dailyHandicap%18 >= strokeIndex {
 		strokes++
 	}
 	return par + 2 + strokes
@@ -137,12 +164,12 @@ func NetScores(scores, strokeIndex [18]int, handicapUsed float64) [18]int {
 	return net
 }
 
-func AdjustedGrossScore(scores, par, strokeIndex [18]int, courseHandicap int, useInitialCap bool) int {
+func AdjustedGrossScore(scores, par, strokeIndex [18]int, dailyHandicap int, useInitialCap bool) int {
 	total := 0
 	for i := 0; i < 18; i++ {
 		cap := par[i] + 5
 		if !useInitialCap {
-			cap = NetDoubleBogeyCap(par[i], courseHandicap, strokeIndex[i])
+			cap = NetDoubleBogeyCap(par[i], dailyHandicap, strokeIndex[i])
 		}
 		s := scores[i]
 		if s <= 0 || s > cap {
@@ -157,8 +184,11 @@ func ScoreDifferential(adjustedGross int, rating float64, slope int) float64 {
 	return (113.0 / float64(slope)) * (float64(adjustedGross) - rating)
 }
 
-func CourseHandicap(index, rating float64, slope, par int) int {
-	return int(math.Round(index*float64(slope)/113.0 + rating - float64(par)))
+// DailyHandicap applies Golf Australia's current 18-hole formula:
+// ((GA Handicap × Slope / 113) + (Scratch Rating − Par)) × 0.93 × Consistency Factor.
+func DailyHandicap(index, rating float64, slope, par int, category HandicapCategory) int {
+	base := index*float64(slope)/113.0 + rating - float64(par)
+	return int(math.Round(base * 0.93 * category.ConsistencyFactor()))
 }
 
 func TotalPar(par [18]int) int {
@@ -225,20 +255,20 @@ func RecalculatePlayerRounds(d *Data, player string) error {
 			return fmt.Errorf("course %q tee %q is not defined", r.CourseName, r.Tee)
 		}
 
-		startingCH, hasStarting := d.StartingHandicap(player)
+		startingDH, hasStarting := d.StartingDailyHandicap(player)
 		useInitialCap := false
-		ch := 0
+		dh := 0
 		switch {
 		case hasStarting && k < QualifyingRounds:
-			ch = startingCH
+			dh = startingDH
 		case k < QualifyingRounds:
 			useInitialCap = true
 		default:
 			previousIndex := d.Rounds[positions[k-1]].EffectiveIndexAfter
-			ch = CourseHandicap(previousIndex, course.Rating, course.Slope, TotalPar(course.Par))
+			dh = DailyHandicap(previousIndex, course.Rating, course.Slope, TotalPar(course.Par), d.HandicapCategory(player))
 		}
-		r.CourseHandicapAt = ch
-		r.AdjustedGrossAt = AdjustedGrossScore(r.Scores, course.Par, course.StrokeIndex, ch, useInitialCap)
+		r.DailyHandicapAt = dh
+		r.AdjustedGrossAt = AdjustedGrossScore(r.Scores, course.Par, course.StrokeIndex, dh, useInitialCap)
 		r.ScoreDifferential = ScoreDifferential(r.AdjustedGrossAt, course.Rating, course.Slope)
 
 		history := make([]Round, k+1)

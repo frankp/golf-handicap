@@ -157,12 +157,12 @@ function scoreLabel(score: number, par: number) {
           </div>
         </div>
         <p v-if="participant.initialParFiveCapUsed || participant.startingHandicapUsed" class="calculation-note">
-          {{ participant.startingHandicapUsed ? `Starting Course Handicap ${participant.courseHandicap} applied.` : 'Initial Par + 5 limits applied.' }}
+          {{ participant.startingHandicapUsed ? `Starting Daily Handicap ${participant.dailyHandicap} applied.` : 'Initial Par + 5 limits applied.' }}
         </p>
         <p v-if="showNet" class="calculation-note">
           {{ participant.handicapUsed !== null
             ? `Net score uses the supplied handicap of ${participant.handicapUsed.toFixed(1)}.`
-            : `Net score uses the Course Handicap of ${participant.courseHandicap}.` }}
+            : `Net score uses the Daily Handicap of ${participant.dailyHandicap}.` }}
         </p>
       </section>
     </template>
