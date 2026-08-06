@@ -145,8 +145,8 @@ function scoreLabel(score: number, par: number) {
             <template v-if="showNet"><span>Net</span><strong>{{ Math.round(participant.netScore) }}</strong></template>
           </div>
         </div>
-        <p v-if="participant.initialParFiveCapUsed || participant.startingHandicapUsed" class="calculation-note">
-          {{ participant.startingHandicapUsed ? `Starting Daily Handicap ${participant.dailyHandicap} applied.` : 'Initial Par + 5 limits applied.' }}
+        <p v-if="participant.initialParFiveCapUsed" class="calculation-note">
+          Initial Par + 5 limits applied.
         </p>
         <p v-if="showNet" class="calculation-note">
           {{ participant.handicapUsed !== null

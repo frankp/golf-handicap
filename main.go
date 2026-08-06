@@ -73,10 +73,6 @@ Usage:
   golf course add                 Define a course/tee (par + stroke index for each hole)
   golf course list                List defined courses/tees
   golf player list                List players
-  golf player set-starting-handicap --player NAME --handicap N
-                                   Nominate a starting Daily Handicap
-  golf player clear-starting-handicap --player NAME
-                                   Remove a nominated starting Daily Handicap
   golf round add --player NAME --course COURSE --tee TEE --date YYYY-MM-DD
                  [--handicap-used N]
                                    Record a round, entering each hole's score
@@ -214,7 +210,7 @@ func roundAdd(ctx context.Context, store *database.Store, args []string) error {
 		return err
 	}
 	if !found {
-		player, err = store.CreatePlayer(ctx, *playerName, nil, nil)
+		player, err = store.CreatePlayer(ctx, *playerName, nil)
 		if err != nil {
 			return err
 		}
@@ -227,9 +223,6 @@ func roundAdd(ctx context.Context, store *database.Store, args []string) error {
 	fmt.Printf("%s playing %s (%s), CR %.1f / Slope %d.\n",
 		player.Name, tee.CourseName, tee.Name, tee.Rating, tee.Slope)
 	switch {
-	case player.RoundCount < handicap.QualifyingRounds && player.StartingDailyHandicap != nil:
-		fmt.Printf("Starting Daily Handicap: %d (used until an initial Handicap Index is established)\n",
-			*player.StartingDailyHandicap)
 	case player.GroupHandicapIndex == nil:
 		fmt.Println("No Handicap Index on file yet - hole caps use Par+5 (WHS initial-handicap rule).")
 	default:
@@ -406,15 +399,11 @@ func handicapCmd(ctx context.Context, store *database.Store, args []string) erro
 
 func playerCmd(ctx context.Context, store *database.Store, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: golf player list | set-starting-handicap | clear-starting-handicap")
+		return fmt.Errorf("usage: golf player list")
 	}
 	switch args[0] {
 	case "list":
 		return playerList(ctx, store)
-	case "set-starting-handicap":
-		return playerSetStartingHandicap(ctx, store, args[1:])
-	case "clear-starting-handicap":
-		return playerClearStartingHandicap(ctx, store, args[1:])
 	default:
 		return fmt.Errorf("unknown player subcommand %q", args[0])
 	}
@@ -429,83 +418,13 @@ func playerList(ctx context.Context, store *database.Store) error {
 		fmt.Println("No players recorded yet.")
 		return nil
 	}
-	fmt.Printf("%-20s %-8s %-8s %s\n", "PLAYER", "INDEX", "START", "ROUNDS")
+	fmt.Printf("%-20s %-8s %s\n", "PLAYER", "INDEX", "ROUNDS")
 	for _, player := range players {
 		index := "-"
 		if player.GroupHandicapIndex != nil {
 			index = fmt.Sprintf("%.1f", *player.GroupHandicapIndex)
 		}
-		starting := "-"
-		if player.StartingDailyHandicap != nil {
-			starting = strconv.Itoa(*player.StartingDailyHandicap)
-		}
-		fmt.Printf("%-20s %-8s %-8s %d round(s)\n",
-			player.Name, index, starting, player.RoundCount)
-	}
-	return nil
-}
-
-func playerSetStartingHandicap(ctx context.Context, store *database.Store, args []string) error {
-	fs := flag.NewFlagSet("player set-starting-handicap", flag.ContinueOnError)
-	playerName := fs.String("player", "", "player name")
-	starting := fs.Int("handicap", 0, "nominated starting Daily Handicap")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	handicapSet := false
-	fs.Visit(func(f *flag.Flag) {
-		if f.Name == "handicap" {
-			handicapSet = true
-		}
-	})
-	if *playerName == "" || !handicapSet {
-		return fmt.Errorf("usage: golf player set-starting-handicap --player NAME --handicap N")
-	}
-	player, found, err := findPlayer(ctx, store, *playerName)
-	if err != nil {
-		return err
-	}
-	if !found {
-		player, err = store.CreatePlayer(ctx, *playerName, nil, starting)
-	} else {
-		player, err = store.UpdatePlayer(ctx, player.ID, player.Name, nil, starting,
-			player.OfficialHandicapIndex, player.OfficialHandicapDate)
-	}
-	if err != nil {
-		return err
-	}
-	fmt.Printf("%s's starting Daily Handicap set to %d (applies to their first %d round(s)).\n",
-		player.Name, *starting, handicap.QualifyingRounds)
-	if player.GroupHandicapIndex != nil {
-		fmt.Printf("%s's Handicap Index is now %.1f.\n", player.Name, *player.GroupHandicapIndex)
-	}
-	return nil
-}
-
-func playerClearStartingHandicap(ctx context.Context, store *database.Store, args []string) error {
-	fs := flag.NewFlagSet("player clear-starting-handicap", flag.ContinueOnError)
-	playerName := fs.String("player", "", "player name")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if *playerName == "" {
-		return fmt.Errorf("usage: golf player clear-starting-handicap --player NAME")
-	}
-	player, found, err := findPlayer(ctx, store, *playerName)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("player %q not found", *playerName)
-	}
-	player, err = store.UpdatePlayer(ctx, player.ID, player.Name, nil, nil,
-		player.OfficialHandicapIndex, player.OfficialHandicapDate)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("%s's starting Daily Handicap cleared.\n", player.Name)
-	if player.GroupHandicapIndex != nil {
-		fmt.Printf("%s's Handicap Index is now %.1f.\n", player.Name, *player.GroupHandicapIndex)
+		fmt.Printf("%-20s %-8s %d round(s)\n", player.Name, index, player.RoundCount)
 	}
 	return nil
 }

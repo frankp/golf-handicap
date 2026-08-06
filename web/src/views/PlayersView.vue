@@ -21,8 +21,8 @@ const error = ref('')
 const showAdd = ref(false)
 const editing = ref<Player | null>(null)
 const saving = ref(false)
-const form = ref<{ name: string; category: HandicapCategory; starting?: number; official?: number; officialDate: string }>({
-  name: '', category: 'men', starting: undefined, official: undefined, officialDate: '',
+const form = ref<{ name: string; category: HandicapCategory; official?: number; officialDate: string }>({
+  name: '', category: 'men', official: undefined, officialDate: '',
 })
 
 onMounted(load)
@@ -40,7 +40,7 @@ async function load() {
 }
 
 function openAdd() {
-  form.value = { name: '', category: 'men', starting: undefined, official: undefined, officialDate: '' }
+  form.value = { name: '', category: 'men', official: undefined, officialDate: '' }
   showAdd.value = true
 }
 
@@ -49,7 +49,6 @@ function openEdit(player: Player) {
   form.value = {
     name: player.name,
     category: player.handicapCategory,
-    starting: player.startingDailyHandicap ?? undefined,
     official: player.officialHandicapIndex ?? undefined,
     officialDate: player.officialHandicapDate ?? '',
   }
@@ -61,7 +60,6 @@ async function saveAdd() {
     await api.createPlayer({
       name: form.value.name,
       handicapCategory: form.value.category,
-      startingDailyHandicap: form.value.starting ?? null,
     })
     showAdd.value = false
     await load()
@@ -79,7 +77,6 @@ async function saveEdit() {
     await api.updatePlayer(editing.value.id, {
       name: form.value.name,
       handicapCategory: form.value.category,
-      startingDailyHandicap: form.value.starting ?? null,
       officialHandicapIndex: form.value.official ?? null,
       officialHandicapDate: form.value.officialDate || null,
     })
@@ -116,14 +113,13 @@ async function remove(player: Player) {
     </EmptyState>
     <div v-else class="table-wrap">
       <table>
-        <thead><tr><th>Player</th><th>Category</th><th>Group HI</th><th>Official HI</th><th>Starting DH</th><th>Rounds</th><th></th></tr></thead>
+        <thead><tr><th>Player</th><th>Category</th><th>Group HI</th><th>Official HI</th><th>Rounds</th><th></th></tr></thead>
         <tbody>
           <tr v-for="player in players" :key="player.id">
             <td><RouterLink class="primary-link" :to="`/players/${player.id}`">{{ player.name }}</RouterLink></td>
             <td>{{ player.handicapCategory === 'women' ? 'Women/Girls' : 'Men/Boys' }}</td>
             <td><strong>{{ player.groupHandicapIndex?.toFixed(1) ?? 'Pending' }}</strong></td>
             <td>{{ player.officialHandicapIndex?.toFixed(1) ?? '—' }}</td>
-            <td>{{ player.startingDailyHandicap ?? '—' }}</td>
             <td>{{ player.roundCount }}</td>
             <td class="button-cluster">
               <button v-if="authState.authenticated" class="icon-button" title="Edit player" @click="openEdit(player)"><Pencil :size="17" /></button>
@@ -143,9 +139,6 @@ async function remove(player: Player) {
         <AppField input-id="add-player-category" label="Handicap category">
           <AppSelect id="add-player-category" v-model="form.category" :options="handicapCategories" />
         </AppField>
-        <AppField input-id="add-player-starting-handicap" label="Starting Daily Handicap" hint="Optional">
-          <AppNumberField id="add-player-starting-handicap" v-model="form.starting" :min="0" :max="99" />
-        </AppField>
         <div class="form-actions"><button type="button" class="button ghost" @click="showAdd = false">Cancel</button><button class="button" :disabled="saving">Add player</button></div>
       </form>
     </AppModal>
@@ -157,9 +150,6 @@ async function remove(player: Player) {
         </AppField>
         <AppField input-id="edit-player-category" label="Handicap category">
           <AppSelect id="edit-player-category" v-model="form.category" :options="handicapCategories" />
-        </AppField>
-        <AppField input-id="edit-player-starting-handicap" label="Starting Daily Handicap" hint="First three rounds">
-          <AppNumberField id="edit-player-starting-handicap" v-model="form.starting" :min="0" :max="99" />
         </AppField>
         <div class="field-pair">
           <AppField input-id="edit-player-official-handicap" label="Official Handicap Index" hint="Reference only">

@@ -66,12 +66,7 @@ func main() {
 	sort.Strings(names)
 	playerIDs := map[string]int64{}
 	for _, name := range names {
-		var starting *int
-		if value, ok := legacy.StartingHandicaps[name]; ok {
-			valueCopy := value
-			starting = &valueCopy
-		}
-		player, err := store.CreatePlayer(ctx, name, nil, starting)
+		player, err := store.CreatePlayer(ctx, name, nil)
 		if err != nil {
 			log.Fatalf("import player %s: %v", name, err)
 		}

@@ -35,8 +35,9 @@ To import a legacy JSON file into a new, empty database:
 go run ./cmd/import-json --json golf-data.json --db golf.db
 ```
 
-The importer retains raw hole scores, courses, tees, players, nominated
-starting handicaps, and recalculates all derived handicap values.
+The importer retains raw hole scores, courses, tees, and players, and
+recalculates all derived handicap values. Legacy nominated starting
+handicaps are ignored; initial scores use the WHS Par+5 limit.
 
 For frontend development with hot reload, run the API and Vite separately:
 
@@ -219,8 +220,7 @@ least the cap" and scored as the cap.
 
 **Exception:** a Handicap Index is not established until a player has
 submitted three 18-hole scores. During those first three rounds, WHS's
-initial-handicap rule caps every hole at `Par + 5`. A nominated starting
-Daily Handicap can be used instead.
+initial-handicap rule caps every hole at `Par + 5`.
 
 ## How the Handicap Index is calculated
 

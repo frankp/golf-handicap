@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -42,7 +43,7 @@ func TestPlayerHandicapCategoryDefaultsToMenAndCanBeUpdated(t *testing.T) {
 	defer store.Close()
 	ctx := context.Background()
 
-	player, err := store.CreatePlayer(ctx, "Frank", nil, nil)
+	player, err := store.CreatePlayer(ctx, "Frank", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestPlayerHandicapCategoryDefaultsToMenAndCanBeUpdated(t *testing.T) {
 	}
 
 	category := handicap.Women
-	player, err = store.UpdatePlayer(ctx, player.ID, player.Name, &category, nil, nil, nil)
+	player, err = store.UpdatePlayer(ctx, player.ID, player.Name, &category, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,12 +61,12 @@ func TestPlayerHandicapCategoryDefaultsToMenAndCanBeUpdated(t *testing.T) {
 	}
 
 	invalid := handicap.HandicapCategory("other")
-	if _, err := store.UpdatePlayer(ctx, player.ID, player.Name, &invalid, nil, nil, nil); err == nil {
+	if _, err := store.UpdatePlayer(ctx, player.ID, player.Name, &invalid, nil, nil); err == nil {
 		t.Fatal("invalid handicap category should be rejected")
 	}
 }
 
-func TestOpenRecalculatesDailyHandicapWhenFormulaVersionChanges(t *testing.T) {
+func TestOpenRemovesLegacyStartingHandicapsAndRecalculates(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	store, err := Open(path)
 	if err != nil {
@@ -82,14 +83,13 @@ func TestOpenRecalculatesDailyHandicapWhenFormulaVersionChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	starting := 10
-	player, err := store.CreatePlayer(ctx, "Frank", nil, &starting)
+	player, err := store.CreatePlayer(ctx, "Frank", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	scores := [18]int{}
 	for i := range scores {
-		scores[i] = 5
+		scores[i] = 9
 	}
 	round, err := store.CreateRound(ctx, CreateRoundInput{
 		PlayedOn:     "2026-07-30",
@@ -99,10 +99,14 @@ func TestOpenRecalculatesDailyHandicapWhenFormulaVersionChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := round.Participants[0].DailyHandicap; got != starting {
-		t.Fatalf("initial Daily Handicap = %d, want %d", got, starting)
+	if got := round.Participants[0].AdjustedGross; got != 162 {
+		t.Fatalf("initial adjusted gross = %d, want 162 under Par+5", got)
 	}
-	if _, err := store.db.ExecContext(ctx, `UPDATE round_players SET daily_handicap = 99`); err != nil {
+	if _, err := store.db.ExecContext(ctx, `UPDATE players SET starting_course_handicap = 30`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `UPDATE round_players
+		SET daily_handicap = 30, adjusted_gross = 138, starting_handicap_used = 1, initial_par_five_cap_used = 0`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.db.ExecContext(ctx, `UPDATE app_metadata SET value = 'old' WHERE key = 'handicap_formula_version'`); err != nil {
@@ -121,8 +125,21 @@ func TestOpenRecalculatesDailyHandicapWhenFormulaVersionChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := round.Participants[0].DailyHandicap; got != starting {
-		t.Fatalf("migrated Daily Handicap = %d, want %d", got, starting)
+	if got := round.Participants[0].DailyHandicap; got != 0 {
+		t.Fatalf("migrated Daily Handicap = %d, want 0", got)
+	}
+	if got := round.Participants[0].AdjustedGross; got != 162 {
+		t.Fatalf("migrated adjusted gross = %d, want 162 under Par+5", got)
+	}
+	if !round.Participants[0].InitialParFiveCapUsed {
+		t.Fatal("migrated round should be marked as using the initial Par+5 cap")
+	}
+	var legacyStarting sql.NullInt64
+	if err := store.db.QueryRowContext(ctx, `SELECT starting_course_handicap FROM players WHERE id = ?`, player.ID).Scan(&legacyStarting); err != nil {
+		t.Fatal(err)
+	}
+	if legacyStarting.Valid {
+		t.Fatalf("legacy starting handicap was not cleared: %d", legacyStarting.Int64)
 	}
 	var version string
 	if err := store.db.QueryRowContext(ctx,
@@ -153,13 +170,8 @@ func TestMultiPlayerRoundLoadsEveryScorecardAndEstablishesIndexes(t *testing.T) 
 	}
 
 	var players []Player
-	for i, name := range []string{"Frank", "Grahame", "Shane"} {
-		var startingHandicap *int
-		if i == 1 {
-			starting := 10
-			startingHandicap = &starting
-		}
-		player, err := store.CreatePlayer(ctx, name, nil, startingHandicap)
+	for _, name := range []string{"Frank", "Grahame", "Shane"} {
+		player, err := store.CreatePlayer(ctx, name, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -213,9 +225,6 @@ func TestMultiPlayerRoundLoadsEveryScorecardAndEstablishesIndexes(t *testing.T) 
 		}
 		if participant.NetScore != float64(participant.Gross)-netHandicap {
 			t.Errorf("%s net score = %v, want %v", participant.PlayerName, participant.NetScore, float64(participant.Gross)-netHandicap)
-		}
-		if i == 1 && (participant.HandicapUsed != nil || participant.DailyHandicap != 10 || participant.NetScore != float64(participant.Gross)-10) {
-			t.Errorf("%s did not use historical Daily Handicap fallback: %+v", participant.PlayerName, participant)
 		}
 		wantNetScores := handicap.NetScores(participant.Scores, course.StrokeIndex, netHandicap)
 		if participant.NetScores != wantNetScores {
@@ -286,7 +295,7 @@ func TestCourseAndTeeUpdatesPreserveRoundsAndRecalculate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	player, err := store.CreatePlayer(ctx, "Frank", nil, nil)
+	player, err := store.CreatePlayer(ctx, "Frank", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

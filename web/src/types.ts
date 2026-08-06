@@ -4,7 +4,6 @@ export interface Player {
   id: number
   name: string
   handicapCategory: HandicapCategory
-  startingDailyHandicap: number | null
   officialHandicapIndex: number | null
   officialHandicapDate: string | null
   groupHandicapIndex: number | null
@@ -44,7 +43,6 @@ export interface RoundPlayer {
   adjustedGross: number
   scoreDifferential: number
   handicapIndexAfter: number | null
-  startingHandicapUsed: boolean
   initialParFiveCapUsed: boolean
   counting: boolean
 }
