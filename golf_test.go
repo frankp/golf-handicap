@@ -440,20 +440,7 @@ func TestRecalculatePlayerRoundsDoesNotCapBeforeTwentyScores(t *testing.T) {
 	}
 }
 
-// TestStartingHandicapAppliesForQualifyingRoundsOnly uses the same
-// synthetic course (Rating equals par, Slope 113, so Daily Handicap
-// equals index) to check the nominated-starting-handicap feature precisely.
-//
-// A blown-up round (every hole scored 9, i.e. Par+5) is played 4 times:
-//   - With no starting handicap, round 1 falls back to the Par+5 rule,
-//     so nothing is capped: adjusted gross stays at 18*9=162.
-//   - With a starting handicap of 30 set, Net Double Bogey capping
-//     applies from round 1: holes with Stroke Index 1-12 get 2 strokes
-//     (cap 4+2+2=8, since 30 >= SI+18) and holes 13-18 get 1 (cap
-//     4+2+1=7, since 30 >= SI but 30 < SI+18) -> 12*8 + 6*7 = 138.
-//   - That applies to rounds 1-3 (qualifyingRounds). Round 4 must revert
-//     to the normal derived-Course-Handicap behavior.
-func TestStartingHandicapAppliesForQualifyingRoundsOnly(t *testing.T) {
+func TestInitialRoundsAlwaysUseParFiveCap(t *testing.T) {
 	var course Course
 	course.Name, course.Tee, course.Rating, course.Slope = "Synthetic", "Test", 72.0, 113
 	for i := 0; i < 18; i++ {
@@ -465,63 +452,29 @@ func TestStartingHandicapAppliesForQualifyingRoundsOnly(t *testing.T) {
 		blownUp[i] = 9
 	}
 
-	newData := func() Data {
-		d := Data{Courses: []Course{course}}
-		dates := []string{"2025-01-01", "2025-01-08", "2025-01-15", "2025-01-22"}
-		for _, date := range dates {
-			d.Rounds = append(d.Rounds, Round{
-				Player: "Newbie", Date: date, CourseName: course.Name, Tee: course.Tee, Scores: blownUp,
-			})
-		}
-		return d
+	d := Data{
+		Courses:           []Course{course},
+		StartingHandicaps: map[string]int{"Newbie": 30}, // ignored legacy data
 	}
-
-	t.Run("no starting handicap falls back to Par+5 on round 1", func(t *testing.T) {
-		d := newData()
-		if err := recalculatePlayerRounds(&d, "Newbie"); err != nil {
-			t.Fatalf("recalculatePlayerRounds failed: %v", err)
+	for _, date := range []string{"2025-01-01", "2025-01-08", "2025-01-15", "2025-01-22"} {
+		d.Rounds = append(d.Rounds, Round{
+			Player: "Newbie", Date: date, CourseName: course.Name, Tee: course.Tee, Scores: blownUp,
+		})
+	}
+	if err := recalculatePlayerRounds(&d, "Newbie"); err != nil {
+		t.Fatalf("recalculatePlayerRounds failed: %v", err)
+	}
+	for i := 0; i < qualifyingRounds; i++ {
+		if got := d.Rounds[i].DailyHandicapAt; got != 0 {
+			t.Errorf("round %d Daily Handicap = %d, want 0 before an index is established", i+1, got)
 		}
-		for i := 0; i < qualifyingRounds; i++ {
-			if got := d.Rounds[i].AdjustedGrossAt; got != 162 {
-				t.Errorf("round %d adjusted gross = %d, want 162 (Par+5, uncapped)", i+1, got)
-			}
+		if got := d.Rounds[i].AdjustedGrossAt; got != 162 {
+			t.Errorf("round %d adjusted gross = %d, want 162 under Par+5", i+1, got)
 		}
-	})
-
-	t.Run("starting handicap caps rounds 1-3, round 4 reverts to normal", func(t *testing.T) {
-		d := newData()
-		d.SetStartingDailyHandicap("Newbie", 30)
-		if err := recalculatePlayerRounds(&d, "Newbie"); err != nil {
-			t.Fatalf("recalculatePlayerRounds failed: %v", err)
-		}
-		for i := 0; i < 3; i++ {
-			if got := d.Rounds[i].DailyHandicapAt; got != 30 {
-				t.Errorf("round %d Daily Handicap = %d, want 30 (nominated)", i+1, got)
-			}
-			if got := d.Rounds[i].AdjustedGrossAt; got != 138 {
-				t.Errorf("round %d adjusted gross = %d, want 138", i+1, got)
-			}
-		}
-		round3Effective := d.Rounds[2].EffectiveIndexAfter
-		wantRound4DH := dailyHandicap(round3Effective, course.Rating, course.Slope, 72, men)
-		if got := d.Rounds[3].DailyHandicapAt; got != wantRound4DH {
-			t.Errorf("round 4 Daily Handicap = %d, want %d (derived from round 3's index, not the nominated 30)",
-				got, wantRound4DH)
-		}
-	})
-
-	t.Run("clearing the starting handicap reverts round 1 to Par+5", func(t *testing.T) {
-		d := newData()
-		d.SetStartingDailyHandicap("Newbie", 30)
-		if err := recalculatePlayerRounds(&d, "Newbie"); err != nil {
-			t.Fatalf("recalculatePlayerRounds failed: %v", err)
-		}
-		d.ClearStartingDailyHandicap("Newbie")
-		if err := recalculatePlayerRounds(&d, "Newbie"); err != nil {
-			t.Fatalf("recalculatePlayerRounds failed: %v", err)
-		}
-		if got := d.Rounds[0].AdjustedGrossAt; got != 162 {
-			t.Errorf("round 1 adjusted gross after clearing = %d, want 162", got)
-		}
-	})
+	}
+	round3Effective := d.Rounds[2].EffectiveIndexAfter
+	wantRound4DH := dailyHandicap(round3Effective, course.Rating, course.Slope, 72, men)
+	if got := d.Rounds[3].DailyHandicapAt; got != wantRound4DH {
+		t.Errorf("round 4 Daily Handicap = %d, want %d derived from round 3's index", got, wantRound4DH)
+	}
 }

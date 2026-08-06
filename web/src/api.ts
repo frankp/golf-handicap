@@ -26,12 +26,11 @@ export const api = {
   logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
   players: () => request<Player[]>('/api/players'),
   player: (id: number) => request<PlayerDetail>(`/api/players/${id}`),
-  createPlayer: (body: { name: string; handicapCategory: HandicapCategory; startingDailyHandicap: number | null }) =>
+  createPlayer: (body: { name: string; handicapCategory: HandicapCategory }) =>
     request<Player>('/api/players', { method: 'POST', body: JSON.stringify(body) }),
   updatePlayer: (id: number, body: {
     name: string
     handicapCategory: HandicapCategory
-    startingDailyHandicap: number | null
     officialHandicapIndex: number | null
     officialHandicapDate: string | null
   }) => request<Player>(`/api/players/${id}`, { method: 'PUT', body: JSON.stringify(body) }),

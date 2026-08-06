@@ -81,26 +81,12 @@ type Round struct {
 }
 
 type Data struct {
-	Courses            []Course                    `json:"courses"`
-	Rounds             []Round                     `json:"rounds"`
+	Courses []Course `json:"courses"`
+	Rounds  []Round  `json:"rounds"`
+	// StartingHandicaps is retained only so the legacy JSON importer can read
+	// old files. Initial scores always use the WHS Par+5 limit.
 	StartingHandicaps  map[string]int              `json:"startingHandicaps,omitempty"`
 	HandicapCategories map[string]HandicapCategory `json:"handicapCategories,omitempty"`
-}
-
-func (d *Data) StartingDailyHandicap(player string) (int, bool) {
-	ch, ok := d.StartingHandicaps[player]
-	return ch, ok
-}
-
-func (d *Data) SetStartingDailyHandicap(player string, ch int) {
-	if d.StartingHandicaps == nil {
-		d.StartingHandicaps = map[string]int{}
-	}
-	d.StartingHandicaps[player] = ch
-}
-
-func (d *Data) ClearStartingDailyHandicap(player string) {
-	delete(d.StartingHandicaps, player)
 }
 
 func (d *Data) HandicapCategory(player string) HandicapCategory {
@@ -255,15 +241,9 @@ func RecalculatePlayerRounds(d *Data, player string) error {
 			return fmt.Errorf("course %q tee %q is not defined", r.CourseName, r.Tee)
 		}
 
-		startingDH, hasStarting := d.StartingDailyHandicap(player)
-		useInitialCap := false
+		useInitialCap := k < QualifyingRounds
 		dh := 0
-		switch {
-		case hasStarting && k < QualifyingRounds:
-			dh = startingDH
-		case k < QualifyingRounds:
-			useInitialCap = true
-		default:
+		if !useInitialCap {
 			previousIndex := d.Rounds[positions[k-1]].EffectiveIndexAfter
 			dh = DailyHandicap(previousIndex, course.Rating, course.Slope, TotalPar(course.Par), d.HandicapCategory(player))
 		}
